@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "train-your-fly"
+version = "0.1.0"
+description = "Research code for building and training Drosophila connectome and eye models."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Eudald" }
+]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "scipy>=1.10",
+  "matplotlib>=3.7",
+  "seaborn>=0.13",
+  "pillow>=10.0",
+  "imageio>=2.31",
+  "wandb>=0.16"
+]
+
+[project.optional-dependencies]
+# Heavy ML stack (PyTorch/PyG) is installed via platform-specific wheels; see setup instructions.
+pytorch = []
+pyg = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trainyourfly"]
+
+[tool.uv]
+# Developer tooling
+dev-dependencies = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "ruff>=0.5.0",
+  "black>=24.4.0"
+]
