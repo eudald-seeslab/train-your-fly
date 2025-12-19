@@ -1,8 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
-import torch
 
-from connectome.core.train_funcs import (
+from trainyourfly.utils.train_funcs import (
     apply_inhibitory_r7_r8,
     get_activation_from_cell_type,
     get_voronoi_averages,
@@ -17,17 +16,38 @@ class FlyPlotter:
     def __init__(self, voronoi_cells):
         self.voronoi_cells = voronoi_cells
 
-    def plot_input_images(self, img, tesselated_neurons, voronoi_indices, inhibitory_r7_r8=False, *, voronoi_colour="orange", voronoi_width=1):
+    def plot_input_images(
+        self,
+        img,
+        tesselated_neurons,
+        voronoi_indices,
+        inhibitory_r7_r8=False,
+        *,
+        voronoi_colour="orange",
+        voronoi_width=1,
+    ):
         """Return (figure, title) tuple with three-panel diagnostic plot."""
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-        self._plot_voronoi_cells_with_neurons(tesselated_neurons, axes[0], voronoi_colour, voronoi_width)
-        self._plot_neuron_activations(img, axes[1], tesselated_neurons, voronoi_indices, inhibitory_r7_r8, voronoi_colour, voronoi_width)
+        self._plot_voronoi_cells_with_neurons(
+            tesselated_neurons, axes[0], voronoi_colour, voronoi_width
+        )
+        self._plot_neuron_activations(
+            img,
+            axes[1],
+            tesselated_neurons,
+            voronoi_indices,
+            inhibitory_r7_r8,
+            voronoi_colour,
+            voronoi_width,
+        )
         self._plot_input_image(img, axes[2])
         plt.tight_layout()
         plt.close("all")
         return fig, "Activations -> Voronoi <- Input image"
 
-    def _plot_voronoi_cells_with_neurons(self, neuron_data, ax, voronoi_color, voronoi_width):
+    def _plot_voronoi_cells_with_neurons(
+        self, neuron_data, ax, voronoi_color, voronoi_width
+    ):
         vc = self.voronoi_cells
         # Set black background
         ax.set_facecolor("black")
@@ -69,27 +89,56 @@ class FlyPlotter:
         legend.get_title().set_color("white")
         self._clip_image(ax)
 
-    def _plot_neuron_activations(self, img, ax, tesselated_neurons, voronoi_indices, inhibitory_r7_r8, voronoi_color, voronoi_width):
+    def _plot_neuron_activations(
+        self,
+        img,
+        ax,
+        tesselated_neurons,
+        voronoi_indices,
+        inhibitory_r7_r8,
+        voronoi_color,
+        voronoi_width,
+    ):
         vc = self.voronoi_cells
         img_pre = preprocess_images(np.expand_dims(img, 0))
         processed_img = process_images(img_pre, voronoi_indices)
         voronoi_average = get_voronoi_averages(processed_img)[0]
-        voronoi_average.index = [vc.voronoi.point_region[int(i)] for i in voronoi_average.index]
+        voronoi_average.index = [
+            vc.voronoi.point_region[int(i)] for i in voronoi_average.index
+        ]
         corr_tess = tesselated_neurons.copy()
-        corr_tess["voronoi_indices"] = [vc.voronoi.point_region[int(i)] for i in corr_tess["voronoi_indices"]]
-        neuron_acts = corr_tess.merge(voronoi_average, left_on="voronoi_indices", right_index=True)
+        corr_tess["voronoi_indices"] = [
+            vc.voronoi.point_region[int(i)] for i in corr_tess["voronoi_indices"]
+        ]
+        neuron_acts = corr_tess.merge(
+            voronoi_average, left_on="voronoi_indices", right_index=True
+        )
         if inhibitory_r7_r8:
             neuron_acts = apply_inhibitory_r7_r8(neuron_acts)
-        neuron_acts["activation"] = neuron_acts.apply(get_activation_from_cell_type, axis=1)
-        self._plot_voronoi_neuron_activations(neuron_acts, ax, voronoi_color, voronoi_width)
+        neuron_acts["activation"] = neuron_acts.apply(
+            get_activation_from_cell_type, axis=1
+        )
+        self._plot_voronoi_neuron_activations(
+            neuron_acts, ax, voronoi_color, voronoi_width
+        )
 
     def _plot_voronoi_skeleton(self, ax, line_color, line_width):
         vc = self.voronoi_cells
         centres = vc.centers.copy()
         centres[:, 1] = vc.pixel_num - 1 - centres[:, 1]
         from scipy.spatial import Voronoi, voronoi_plot_2d
+
         plot_voronoi = Voronoi(centres)
-        voronoi_plot_2d(plot_voronoi, ax=ax, show_points=False, show_vertices=False, line_colors=line_color, line_width=line_width, line_alpha=0.8, point_size=2)
+        voronoi_plot_2d(
+            plot_voronoi,
+            ax=ax,
+            show_points=False,
+            show_vertices=False,
+            line_colors=line_color,
+            line_width=line_width,
+            line_alpha=0.8,
+            point_size=2,
+        )
 
     def _plot_input_image(self, image, ax):
         vc = self.voronoi_cells
@@ -99,14 +148,19 @@ class FlyPlotter:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    def _plot_voronoi_neuron_activations(self, n_acts, ax, voronoi_color, voronoi_width):
+    def _plot_voronoi_neuron_activations(
+        self, n_acts, ax, voronoi_color, voronoi_width
+    ):
         vc = self.voronoi_cells
         ax.set_facecolor("black")
         self._plot_voronoi_skeleton(ax, voronoi_color, voronoi_width)
         rgb_values = (
             n_acts.loc[:, ["voronoi_indices", "cell_type", "activation"]]
-            .groupby(["voronoi_indices", "cell_type"]).mean()
-            .pivot_table(index="voronoi_indices", columns="cell_type", values="activation")
+            .groupby(["voronoi_indices", "cell_type"])
+            .mean()
+            .pivot_table(
+                index="voronoi_indices", columns="cell_type", values="activation"
+            )
             .fillna(0)
             .rename(columns={"R1-6": "mean", "R7": "b", "R8p": "g", "R8y": "r"})
         )
@@ -116,6 +170,7 @@ class FlyPlotter:
         centres = vc.centers.copy()
         centres[:, 1] = vc.pixel_num - 1 - centres[:, 1]
         from scipy.spatial import Voronoi
+
         plot_voronoi = Voronoi(centres)
         for i in range(len(centres)):
             region_orig = vc.voronoi.point_region[i]

@@ -1,13 +1,15 @@
 import os
+from typing import Optional
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.spatial import Voronoi, cKDTree, voronoi_plot_2d
-import matplotlib.pyplot as plt
 import torch
 from torch_scatter import scatter_add
-from typing import Optional
 
-from connectome.core.train_funcs import assign_cell_type
+from trainyourfly.utils.train_funcs import assign_cell_type
+
 
 class VoronoiCells:
     pixel_num = 512
@@ -55,7 +57,7 @@ class VoronoiCells:
         return pd.read_csv(data_path).drop(columns=["x", "y", "z", "PC1", "PC2"])
 
     def regenerate_random_centers(self):
-        
+
         n_centers = self.neuron_data.shape[0] // self.ommatidia_size
         self.centers = self.neuron_data[self.data_cols].sample(n_centers).values
         self.voronoi = Voronoi(self.centers)
@@ -64,23 +66,27 @@ class VoronoiCells:
     def get_R7_neurons(self, neuron_data):
         return neuron_data[neuron_data["cell_type"] == "R7"][self.data_cols].values
 
-    @ staticmethod
+    @staticmethod
     def get_image_coords(pixel_num):
-        coords = np.array(
-            np.meshgrid(
-                np.arange(pixel_num), np.arange(pixel_num), 
-                indexing="xy")
-                ).reshape(2, -1).T
+        coords = (
+            np.array(
+                np.meshgrid(np.arange(pixel_num), np.arange(pixel_num), indexing="xy")
+            )
+            .reshape(2, -1)
+            .T
+        )
 
         # Invert "y" to start from the bottom, like with the neurons
         coords[:, 1] = pixel_num - 1 - coords[:, 1]
         return coords
 
-    def _plot_voronoi_cells(self, ax, show_points=False, line_color="orange", line_width=1):
+    def _plot_voronoi_cells(
+        self, ax, show_points=False, line_color="orange", line_width=1
+    ):
         """Plot the Voronoi diagram, flipping the y-coordinate so that it
         matches the coordinate system used for both the underlying image
         (drawn with ``imshow`` and the default *origin='upper'*) and the
-        neuron scatter plot, where the y-axis is already inverted 
+        neuron scatter plot, where the y-axis is already inverted
         Note that we create a *temporary* Voronoi instance whose centres have their
         y-coordinate flipped.  This way we do **not** touch
         ``self.voronoi`` (which is also used for KD-Tree queries etc.) and
@@ -104,7 +110,9 @@ class VoronoiCells:
             point_size=2,
         )
 
-    def plot_voronoi_cells_with_neurons(self, neuron_data, ax, voronoi_color, voronoi_width):
+    def plot_voronoi_cells_with_neurons(
+        self, neuron_data, ax, voronoi_color, voronoi_width
+    ):
         # Set black background
         ax.set_facecolor("black")
 
@@ -146,8 +154,8 @@ class VoronoiCells:
                 points["x_axis"],
                 points["y_axis"],
                 color=color,
-                s= 1 if cell_type == "R1-6" else 5,  
-                alpha=0.8 if cell_type == "R1-6" else 1, 
+                s=1 if cell_type == "R1-6" else 5,
+                alpha=0.8 if cell_type == "R1-6" else 1,
                 label=cell_type,
             )
 
@@ -178,11 +186,13 @@ class VoronoiCells:
         ax.set_xticklabels([])
         ax.set_yticklabels([])
 
-    def plot_neuron_activations(self, n_acts, ax, voronoi_color="orange", volonoi_width=1):
+    def plot_neuron_activations(
+        self, n_acts, ax, voronoi_color="orange", volonoi_width=1
+    ):
 
         ax.set_facecolor("black")
 
-        # Draw the Voronoi skeleton (with y-flip) 
+        # Draw the Voronoi skeleton (with y-flip)
         self._plot_voronoi_cells(ax, line_color=voronoi_color, line_width=volonoi_width)
 
         rgb_values = (
@@ -278,14 +288,14 @@ class VoronoiCells:
         """
         processed = processed_imgs.to(device)
         B, P, _ = processed.shape
-        channels  = processed[:, :, :4]                     # (B,P,4)
-        cell_idx  = processed[:, :, 4].long()               # (B,P)
+        channels = processed[:, :, :4]  # (B,P,4)
+        cell_idx = processed[:, :, 4].long()  # (B,P)
         num_cells = int(cell_idx[0].max().item()) + 1
 
         # give each batch its own index range [0..num_cells-1] -> [k*num_cells ..]
         batch_offsets = torch.arange(B, device=device).view(B, 1) * num_cells
-        flat_idx      = (cell_idx + batch_offsets).reshape(-1)      # (B*P)
-        flat_vals     = channels.reshape(-1, 4)                     # (B*P,4)
+        flat_idx = (cell_idx + batch_offsets).reshape(-1)  # (B*P)
+        flat_vals = channels.reshape(-1, 4)  # (B*P,4)
 
         total = B * num_cells
         sums = scatter_add(

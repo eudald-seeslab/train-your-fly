@@ -16,7 +16,7 @@ def log_norm(x):
     # Note that we first set negative values to 0 to avoid log(0), but
     # this is not a problem since these weights would be filtered
     # out anyway in the activation function
-    
+
     x[x < 0] = 0
     return torch.log1p(x)
 

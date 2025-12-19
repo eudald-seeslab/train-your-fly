@@ -3,8 +3,8 @@ import torch
 from torch import cuda, device
 from torch.nn.functional import leaky_relu
 from PIL import Image
-from connectome.core.debug_utils import debugger_is_active
-from paths import PROJECT_ROOT
+from trainyourfly.utils.debug_utils import debugger_is_active
+from configs.config import PROJECT_ROOT
 
 # Paper variables
 data_type = "one_to_ten"

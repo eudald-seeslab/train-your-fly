@@ -1,6 +1,6 @@
 import wandb
 from wandb import AlertLevel
-from connectome.core.utils import module_to_clean_dict
+from trainyourfly.utils.utils import module_to_clean_dict
 
 
 class WandBLogger:
@@ -114,7 +114,9 @@ class WandBLogger:
     ):
         char_ = task if task is not None else ""
         if len(plots) > 0:
-            plot_dict = {f"Plot {i} {char_}": wandb.Image(plot) for i, plot in enumerate(plots)}
+            plot_dict = {
+                f"Plot {i} {char_}": wandb.Image(plot) for i, plot in enumerate(plots)
+            }
         else:
             plot_dict = {}
         if self.enabled:

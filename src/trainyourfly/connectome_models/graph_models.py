@@ -1,9 +1,8 @@
 import torch
+from torch import nn
 from torch.nn import Parameter
 from torch_geometric.nn import MessagePassing
-from torch import nn
-
-from connectome.core.graph_models_helpers import log_norm, min_max_norm
+from trainyourfly.connectome_models.graph_models_helpers import log_norm, min_max_norm
 
 
 class Connectome(MessagePassing):
@@ -36,7 +35,7 @@ class Connectome(MessagePassing):
             #  is edge_weight * edge_weight_multiplier
             self.edge_weight_multiplier = Parameter(
                 torch.Tensor(num_synapses).to(device)
-                )
+            )
             nn.init.uniform_(self.edge_weight_multiplier, a=-1, b=1)
         if config.train_neurons:
             self.neuron_activation_threshold = Parameter(
@@ -65,7 +64,9 @@ class Connectome(MessagePassing):
         x_j = x_j.view(self.batch_size, -1)
         if self.train_edges:
             x_j = (
-                x_j * edge_weight * self.edge_activation_func(self.edge_weight_multiplier)
+                x_j
+                * edge_weight
+                * self.edge_activation_func(self.edge_weight_multiplier)
             )
         else:
             x_j = x_j * edge_weight
@@ -115,18 +116,27 @@ class FullGraphModel(nn.Module):
         self.connectome = Connectome(data_processor, config_)
         graph_builder = data_processor.graph_builder
         self.train_neurons = config_.train_neurons
-        self.register_buffer("decision_making_vector", graph_builder.decision_making_vector)
-        self.num_features = 1 # only works with 1 for now
+        self.register_buffer(
+            "decision_making_vector", graph_builder.decision_making_vector
+        )
+        self.num_features = 1  # only works with 1 for now
         self.batch_size = config_.batch_size
         self.final_layer = config_.final_layer
         self.num_decision_making_neurons = config_.num_decision_making_neurons
         final_layer_input_size = self.compute_final_layer_size(graph_builder, config_)
-        self.final_fc = nn.Linear(final_layer_input_size, data_processor.num_classes, dtype=config_.dtype)
+        self.final_fc = nn.Linear(
+            final_layer_input_size, data_processor.num_classes, dtype=config_.dtype
+        )
         self.decision_making_dropout = nn.Dropout(config_.decision_dropout)
-        self.decision_making_indices = self.select_decision_making_indices(graph_builder, config_, random_generator)
+        self.decision_making_indices = self.select_decision_making_indices(
+            graph_builder, config_, random_generator
+        )
 
     def forward(self, data):
-        x, edge_index = data.x, data.edge_index.long()  # ensure int64 for PyG operations
+        x, edge_index = (
+            data.x,
+            data.edge_index.long(),
+        )  # ensure int64 for PyG operations
 
         # pass through the connectome and reshape to wide again (batch_size, num_neurons, num_features)
         x = self.connectome(x, edge_index)
@@ -158,7 +168,7 @@ class FullGraphModel(nn.Module):
         # If we are using a subset of neurons to compute the final decision
         if self.num_decision_making_neurons is not None:
             x = x[:, self.decision_making_indices, :]
-        
+
         return x
 
     @staticmethod
@@ -177,7 +187,9 @@ class FullGraphModel(nn.Module):
     def select_decision_making_indices(graph_builder, config_, random_generator):
         if config_.num_decision_making_neurons is not None:
             decision_making_indices = torch.randperm(
-                graph_builder.decision_making_vector.sum(), generator=random_generator, device=config_.DEVICE
-            )[:config_.num_decision_making_neurons]
+                graph_builder.decision_making_vector.sum(),
+                generator=random_generator,
+                device=config_.DEVICE,
+            )[: config_.num_decision_making_neurons]
             return decision_making_indices
         return None

@@ -9,14 +9,6 @@ The goal is to keep *scripts/sweep.py* free of bulky configuration data so that
 execution logic and experiment definitions live in separate modules.
 """
 
-from utils.helpers import load_cell_type_lists
-
-# -----------------------------------------------------------------------------
-# Cell-type list from shared utils
-# -----------------------------------------------------------------------------
-
-_cell_types, _ = load_cell_type_lists()
-
 # -----------------------------------------------------------------------------
 # Sweep examples
 # -----------------------------------------------------------------------------
@@ -44,7 +36,9 @@ SWEEP_DEFS["filtered_fraction"] = {
     "method": "random",
     "metric": {"name": "accuracy", "goal": "maximize"},
     "parameters": {
-        "filtered_fraction": {"values": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
+        "filtered_fraction": {
+            "values": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        },
     },
 }
 
@@ -54,7 +48,9 @@ SWEEP_DEFS["dropouts"] = {
     "metric": {"name": "Validation accuracy", "goal": "maximize"},
     "parameters": {
         "neuron_dropout": {"values": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
-        "decision_dropout": {"values": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
+        "decision_dropout": {
+            "values": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        },
     },
 }
 

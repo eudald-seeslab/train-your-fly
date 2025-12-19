@@ -1,18 +1,21 @@
-import numpy as np
-import torch
-from torch_geometric.data import Data
-from scipy.sparse import coo_matrix
-import pandas as pd
 import os
 
-from connectome.core.train_funcs import construct_synaptic_matrix, get_side_decision_making_vector
+from trainyourfly.utils.train_funcs import (
+    construct_synaptic_matrix,
+    get_side_decision_making_vector,
+)
+import numpy as np
+import pandas as pd
+from scipy.sparse import coo_matrix
+import torch
+from torch_geometric.data import Data
 
 
 class GraphBuilder:
     """Utility to convert a sparse synaptic connectivity matrix plus
     per-neuron activations into batched `torch_geometric.data.Data` graphs.
 
-    This is the `connectome` part of the code. It builds a Pytorch Geometric graph from the 
+    This is the `connectome` part of the code. It builds a Pytorch Geometric graph from the
     connections between neurons, and initializes it with the per-neuron activations coming from
     neuron_mapper (which acts as the retina).
 
@@ -29,7 +32,14 @@ class GraphBuilder:
         Full synaptic matrix (optional).
     """
 
-    def __init__(self, edges: torch.Tensor, *, device: torch.device, weights: torch.Tensor | None = None, synaptic_matrix: coo_matrix | None = None):
+    def __init__(
+        self,
+        edges: torch.Tensor,
+        *,
+        device: torch.device,
+        weights: torch.Tensor | None = None,
+        synaptic_matrix: coo_matrix | None = None,
+    ):
         self.edges = edges
         self.device = device
         self.weights = weights
@@ -51,7 +61,9 @@ class GraphBuilder:
 
         return cls(edges, device=device, weights=weights, synaptic_matrix=syn_matrix)
 
-    def build_batch(self, activation_tensor: torch.Tensor, labels) -> tuple[Data, torch.Tensor]:
+    def build_batch(
+        self, activation_tensor: torch.Tensor, labels
+    ) -> tuple[Data, torch.Tensor]:
         """Create a batched graph for *labels* from *activation_tensor*.
 
         Parameters
@@ -73,7 +85,9 @@ class GraphBuilder:
         ).repeat_interleave(num_edges)
         edge_index_rep = edge_index_rep + node_offsets.unsqueeze(0)
 
-        batch_vec = torch.arange(batch_size, device=self.device).repeat_interleave(num_nodes)
+        batch_vec = torch.arange(batch_size, device=self.device).repeat_interleave(
+            num_nodes
+        )
 
         inputs = Data(x=x, edge_index=edge_index_rep, batch=batch_vec)
         labels_t = torch.tensor(labels, dtype=torch.long, device=self.device)
@@ -98,7 +112,9 @@ class GraphBuilder:
         ``DataProcessor``.
         """
 
-        syn_mat = construct_synaptic_matrix(neuron_classification, connections, root_ids)
+        syn_mat = construct_synaptic_matrix(
+            neuron_classification, connections, root_ids
+        )
 
         if log_transform:
             syn_mat.data = np.log1p(syn_mat.data)
@@ -123,7 +139,9 @@ class GraphBuilder:
     def num_nodes(self) -> int:
         """Return the number of neurons in the graph."""
         if self.synaptic_matrix is None:
-            raise AttributeError("GraphBuilder was created without synaptic_matrix info")
+            raise AttributeError(
+                "GraphBuilder was created without synaptic_matrix info"
+            )
         return self.synaptic_matrix.shape[0]
 
     @staticmethod
@@ -167,7 +185,9 @@ class GraphBuilder:
 
         root_ids = cls._compute_root_ids(neuron_classification, connections)
 
-        syn_mat = construct_synaptic_matrix(neuron_classification, connections, root_ids)
+        syn_mat = construct_synaptic_matrix(
+            neuron_classification, connections, root_ids
+        )
 
         if config.log_transform_weights:
             syn_mat.data = np.log1p(syn_mat.data)
@@ -200,7 +220,9 @@ class GraphBuilder:
         if filtered_fraction is not None:
             protected = df[df["cell_type"].isin(["R1-6", "R7", "R8"])]
             non_protected = df[~df["cell_type"].isin(["R1-6", "R7", "R8"])]
-            non_protected = non_protected.sample(frac=filtered_fraction, random_state=1714)
+            non_protected = non_protected.sample(
+                frac=filtered_fraction, random_state=1714
+            )
             df = pd.concat([protected, non_protected])
         return df
 
@@ -212,15 +234,28 @@ class GraphBuilder:
         fname = os.path.join(data_dir, f"connections{tag}.csv")
         conns = csv_loader.read_csv(
             fname,
-            dtype={"pre_root_id": "string", "post_root_id": "string", "syn_count": np.int32},
+            dtype={
+                "pre_root_id": "string",
+                "post_root_id": "string",
+                "syn_count": np.int32,
+            },
             index_col=0,
         )
-        grouped = conns.groupby(["pre_root_id", "post_root_id"]).sum("syn_count").reset_index()
+        grouped = (
+            conns.groupby(["pre_root_id", "post_root_id"])
+            .sum("syn_count")
+            .reset_index()
+        )
         return grouped.sort_values(["pre_root_id", "post_root_id"])
 
     @staticmethod
     def _compute_root_ids(classification, connections):
         neurons = classification[
-            classification["root_id"].isin(connections["pre_root_id"]) | classification["root_id"].isin(connections["post_root_id"])
+            classification["root_id"].isin(connections["pre_root_id"])
+            | classification["root_id"].isin(connections["post_root_id"])
         ]
-        return neurons.reset_index(drop=True).reset_index()[["root_id", "index"]].rename(columns={"index": "index_id"})
+        return (
+            neurons.reset_index(drop=True)
+            .reset_index()[["root_id", "index"]]
+            .rename(columns={"index": "index_id"})
+        )

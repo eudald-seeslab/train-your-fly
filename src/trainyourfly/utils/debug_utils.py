@@ -2,7 +2,7 @@ import logging
 import sys
 import time
 
-logger = logging.getLogger("ct")
+logger = logging.getLogger("trainyourfly")
 
 
 def timing_decorator(func):

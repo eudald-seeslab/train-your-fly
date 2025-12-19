@@ -22,7 +22,11 @@ class ImageProcessor:
         """Resize grayscale images and replicate channels if needed (float32)."""
         return self._prepare_images(imgs_np, dtype=torch.float32, scale=False)
 
-    def process(self, imgs_input: Union[np.ndarray, torch.Tensor], voronoi_indices_t: torch.Tensor) -> torch.Tensor:
+    def process(
+        self,
+        imgs_input: Union[np.ndarray, torch.Tensor],
+        voronoi_indices_t: torch.Tensor,
+    ) -> torch.Tensor:
         """Full pipeline: resize + /255 scaling + mean channel + Voronoi index."""
         target_dtype = torch.float16 if self.device.type == "cuda" else torch.float32
 
@@ -35,10 +39,12 @@ class ImageProcessor:
         imgs_t = torch.cat([imgs_t, mean_ch], dim=2)
 
         vor_idx = voronoi_indices_t.view(1, -1, 1).expand(B, -1, 1).to(target_dtype)
-        
+
         return torch.cat([imgs_t, vor_idx], dim=2)
 
-    def _prepare_images(self, imgs: Union[np.ndarray, torch.Tensor], *, dtype: torch.dtype, scale: bool) -> torch.Tensor:
+    def _prepare_images(
+        self, imgs: Union[np.ndarray, torch.Tensor], *, dtype: torch.dtype, scale: bool
+    ) -> torch.Tensor:
         """Common preprocessing sub-routine used by *preprocess* and *process*.
 
         Parameters
@@ -64,10 +70,12 @@ class ImageProcessor:
 
         if H != 512 or W != 512:
             imgs_t = imgs_t.permute(0, 3, 1, 2).float()
-            imgs_t = F.interpolate(imgs_t, size=(512, 512), mode="bilinear", align_corners=False)
+            imgs_t = F.interpolate(
+                imgs_t, size=(512, 512), mode="bilinear", align_corners=False
+            )
             imgs_t = imgs_t.permute(0, 2, 3, 1)
 
         if scale:
             imgs_t = imgs_t / 255.0
 
-        return imgs_t 
+        return imgs_t

@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 
+
 class CSVLoader:
     """Lightweight helper that wraps ``pandas.read_csv`` with an on-disk pickle
     cache for much faster repeat load times.
@@ -19,7 +20,9 @@ class CSVLoader:
 
         pkl_path = csv_path.replace(".csv", ".pkl")
         try:
-            if os.path.exists(pkl_path) and os.path.getmtime(pkl_path) >= os.path.getmtime(csv_path):
+            if os.path.exists(pkl_path) and os.path.getmtime(
+                pkl_path
+            ) >= os.path.getmtime(csv_path):
                 return pd.read_pickle(pkl_path)
         except (OSError, FileNotFoundError):
             # Fall back to reading CSV if we cannot stat the files (e.g. on some

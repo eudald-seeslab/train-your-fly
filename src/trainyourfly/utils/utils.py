@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.sparse import coo_matrix
 import torch
 
-from connectome.core.debug_utils import model_summary
+from trainyourfly.utils.debug_utils import model_summary
 
 
 def get_files_from_directory(directory_path):
@@ -154,20 +154,20 @@ def module_to_clean_dict(module_):
 def save_checkpoint(model_, optimizer_, model_name, config_, epoch=None):
     if config_.debugging:
         return
-    
+
     path_ = os.path.join(os.getcwd(), "models")
 
     if epoch is not None:
         model_name = model_name.replace(".pth", f"_{epoch}.pth")
         path_ = os.path.join(path_, "epoch_checkpoints")
-    
+
     # create 'models' directory if it doesn't exist
     os.makedirs(path_, exist_ok=True)
     torch.save(
-        {"model": model_.state_dict(), "optimizer": optimizer_.state_dict()}, 
+        {"model": model_.state_dict(), "optimizer": optimizer_.state_dict()},
         os.path.join(path_, model_name),
-        )
-    
+    )
+
     if epoch is not None and epoch > 0:
         return
     # create an accompanying config file
@@ -208,8 +208,10 @@ def process_warnings(u_config, logger):
         )
     if u_config.resume_checkpoint is not None:
         if u_config.num_epochs == 0:
-            logger.warning(f"Resume_checkpoint is not None and num_epochs is 0. "
-                           f"The model will not be trained, only evaluated.")
+            logger.warning(
+                f"Resume_checkpoint is not None and num_epochs is 0. "
+                f"The model will not be trained, only evaluated."
+            )
         else:
             logger.warning(f"Resuming training from {u_config.resume_checkpoint}")
     else:

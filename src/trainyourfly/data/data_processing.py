@@ -1,20 +1,19 @@
 import os
 import random
-
 import numpy as np
 import torch
 
-from paths import PROJECT_ROOT
-from connectome.core.csv_loader import CSVLoader
-from connectome.core.fly_plotter import FlyPlotter
-
-from connectome.core.train_funcs import import_images
-from connectome.core.voronoi_cells import VoronoiCells
-from connectome.core.neuron_mapper import NeuronMapper
-from connectome.core.utils import paths_to_labels
-from connectome.core.image_processor import ImageProcessor
-from connectome.core.graph_builder import GraphBuilder
-from configs.config import CONNECTOME_DATA_DIR
+from configs.config import CONNECTOME_DATA_DIR, PROJECT_ROOT
+from trainyourfly.connectome_models.graph_builder import GraphBuilder
+from trainyourfly.data.data_processing import (
+    CSVLoader,
+    ImageProcessor,
+    NeuronMapper,
+    VoronoiCells,
+)
+from trainyourfly.utils.train_funcs import import_images
+from trainyourfly.utils.utils import paths_to_labels
+from trainyourfly.plots.fly_plotter import FlyPlotter
 
 
 class DataProcessor:
@@ -147,16 +146,20 @@ class DataProcessor:
 
         # Reshape and colour images if needed
         imgs_t = self._image_processor.preprocess(imgs)
-        processed_imgs = self._image_processor.process(imgs_t, self.voronoi_indices_torch)
+        processed_imgs = self._image_processor.process(
+            imgs_t, self.voronoi_indices_torch
+        )
         voronoi_means = VoronoiCells.compute_voronoi_means(
             processed_imgs,
             self.device,
             self.pixel_counts_torch,
         )
-        activation_tensor = self.neuron_mapper.activations_from_voronoi_means(voronoi_means)
+        activation_tensor = self.neuron_mapper.activations_from_voronoi_means(
+            voronoi_means
+        )
 
         # Delete bulky intermediate tensors to reclaim GPU memory before constructing
-        # the (potentially huge) batched edge index. 
+        # the (potentially huge) batched edge index.
         del imgs_t, processed_imgs, voronoi_means
         torch.cuda.empty_cache()
 

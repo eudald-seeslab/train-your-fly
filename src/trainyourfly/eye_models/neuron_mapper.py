@@ -31,7 +31,9 @@ class NeuronMapper:
 
         self._build_mappings(root_ids, tesselated_neurons)
 
-    def activations_from_voronoi_means(self, voronoi_means: torch.Tensor) -> torch.Tensor:  # (B, C_cells, 4) -> (N_neurons, B)
+    def activations_from_voronoi_means(
+        self, voronoi_means: torch.Tensor
+    ) -> torch.Tensor:  # (B, C_cells, 4) -> (N_neurons, B)
         """Map per-cell colour averages to per-neuron activations.
 
         Parameters
@@ -73,21 +75,27 @@ class NeuronMapper:
         tess = tesselated_neurons.copy()
         tess["root_id"] = tess["root_id"].astype("string")
 
-        mapping_df = (
-            root_ids.merge(
-                tess[["root_id", "voronoi_indices", "cell_type"]],
-                on="root_id",
-                how="left",
-            )
-            .sort_values("index_id")
-        )
+        mapping_df = root_ids.merge(
+            tess[["root_id", "voronoi_indices", "cell_type"]],
+            on="root_id",
+            how="left",
+        ).sort_values("index_id")
 
         valid_mask = ~mapping_df["voronoi_indices"].isna()
         valid_indices = mapping_df[valid_mask]["index_id"].values.astype(int)
-        cell_idx[valid_indices] = mapping_df[valid_mask]["voronoi_indices"].astype(int).values
-        ch_idx[valid_indices] = mapping_df[valid_mask]["cell_type"].map(self._CHANNEL_MAP).astype(int).values
+        cell_idx[valid_indices] = (
+            mapping_df[valid_mask]["voronoi_indices"].astype(int).values
+        )
+        ch_idx[valid_indices] = (
+            mapping_df[valid_mask]["cell_type"]
+            .map(self._CHANNEL_MAP)
+            .astype(int)
+            .values
+        )
 
         # Torch tensors on device
         self._cell_idx_t = torch.tensor(cell_idx, device=self.device, dtype=torch.long)
         self._ch_idx_t = torch.tensor(ch_idx, device=self.device, dtype=torch.long)
-        self._valid_neuron_idx = torch.nonzero(self._cell_idx_t != -1, as_tuple=False).squeeze()
+        self._valid_neuron_idx = torch.nonzero(
+            self._cell_idx_t != -1, as_tuple=False
+        ).squeeze()

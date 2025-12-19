@@ -1,8 +1,10 @@
 import os
 import traceback
-import pandas as pd
+
 import seaborn as sns
+
 from matplotlib import pyplot as plt
+import pandas as pd
 
 pd.options.mode.chained_assignment = None
 
