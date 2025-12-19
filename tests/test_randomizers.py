@@ -1,9 +1,11 @@
+# FIXME: think about whether we add the randomizers to the main package or keep them in a separate package
+
 import numpy as np
 import pandas as pd
 
-from utils.helpers import add_coords
-from utils.randomizers import binned, connection_pruning, pruning, mantain_neuron_wiring_length
-from utils.randomizers.randomizers_helpers import compute_total_synapse_length
+from trainyourfly.utils.utils import add_coords
+from trainyourfly.utils.randomizers import binned, connection_pruning, pruning, mantain_neuron_wiring_length
+from trainyourfly.utils.randomizers.randomizers_helpers import compute_total_synapse_length
 
 
 def _sample_network():

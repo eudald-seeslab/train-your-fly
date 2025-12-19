@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from connectome.core.voronoi_cells import VoronoiCells
-from connectome.core.fly_plotter import FlyPlotter
+from trainyourfly.eye_models.voronoi_cells import VoronoiCells
+from trainyourfly.plots.fly_plotter import FlyPlotter
 import matplotlib
 from types import MethodType
 

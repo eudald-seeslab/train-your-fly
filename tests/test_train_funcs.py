@@ -1,5 +1,5 @@
 import numpy as np
-from connectome.core.train_funcs import preprocess_images, process_images, get_voronoi_averages
+from trainyourfly.utils.train_funcs import preprocess_images, process_images, get_voronoi_averages
 
 
 def test_preprocess_images_resizes_and_colors():

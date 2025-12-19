@@ -1,5 +1,5 @@
 import torch
-from connectome.core.graph_builder import GraphBuilder
+from trainyourfly.connectome_models.graph_builder import GraphBuilder
 
 def test_graph_builder_basic():
     # two-node directed edge 0->1,1->0

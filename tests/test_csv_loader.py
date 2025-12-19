@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import time
 
-from connectome.core.csv_loader import CSVLoader
+from trainyourfly.utils.csv_loader import CSVLoader
 
 
 def test_csv_loader_cache(tmp_path):

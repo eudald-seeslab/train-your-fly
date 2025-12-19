@@ -1,6 +1,6 @@
 import pandas as pd
 import torch
-from connectome.core.neuron_mapper import NeuronMapper
+from trainyourfly.eye_models.neuron_mapper import NeuronMapper
 
 
 def test_neuron_mapper_basic():

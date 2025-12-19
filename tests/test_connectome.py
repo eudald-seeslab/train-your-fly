@@ -1,8 +1,7 @@
 import torch
 from torch import nn
-from torch_geometric.data import Data
 
-from connectome.core.graph_models import Connectome
+from trainyourfly.connectome_models.graph_models import Connectome
 
 
 class DummyDataProcessor:
@@ -16,7 +15,7 @@ class DummyDataProcessor:
         data = np.array([1, 1])
         self.synaptic_matrix = coo_matrix((data, (rows, cols)), shape=(2, 2))
         # Minimal GraphBuilder stub
-        from connectome.core.graph_builder import GraphBuilder
+        from trainyourfly.connectome_models.graph_builder import GraphBuilder
 
         edges = torch.tensor([[0, 1], [1, 0]], dtype=torch.int32)
         self.graph_builder = GraphBuilder(edges, device=torch.device("cpu"), synaptic_matrix=self.synaptic_matrix)

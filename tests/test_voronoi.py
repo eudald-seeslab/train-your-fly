@@ -1,5 +1,5 @@
 import torch
-from connectome.core.voronoi_cells import VoronoiCells
+from trainyourfly.eye_models.voronoi_cells import VoronoiCells
 
 
 def test_compute_voronoi_means():
