@@ -13,18 +13,18 @@ from PIL import Image
 # -----------------------------------------------------------------------------
 
 def _build_minimal_adult_data(root) -> None:
-    """Create a *very* small `new_data/` folder with the CSV files that
+    """Create a *very* small `connectome_data/` folder with the CSV files that
     ``DataProcessor`` needs to start up.  The data are synthetic but
     deterministic and tiny so that the test runs in <1 s on CPU.
 
     Note: the connectome codebase now expects CSVs to live under the
     directory defined by ``configs.config.CONNECTOME_DATA_DIR`` which is
-    ``"new_data"``.  The freeze test therefore builds that folder
+    ``"connectome_data"``.  The freeze test therefore builds that folder
     hierarchy so the refactored ``DataProcessor`` can load the files
     without having to maintain backward-compatibility shims.
     """
 
-    data_dir = os.path.join(root, "new_data")
+    data_dir = os.path.join(root, "connectome_data")
     os.makedirs(data_dir, exist_ok=True)
 
     # 6 neurons, enough R7 cells (≥4) so that SciPy Voronoi does not complain.

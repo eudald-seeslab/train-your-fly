@@ -4,7 +4,7 @@ from torch import cuda, device
 from torch.nn.functional import leaky_relu
 from PIL import Image
 from trainyourfly.utils.debug_utils import debugger_is_active
-from configs.config import PROJECT_ROOT
+from paths import PROJECT_ROOT
 
 # Paper variables
 data_type = "one_to_ten"
@@ -32,7 +32,7 @@ sample_image = os.listdir(os.path.join(TRAINING_DATA_DIR, CLASSES[0]))[0]
 image_size = Image.open(os.path.join(TRAINING_DATA_DIR, CLASSES[0], sample_image)).size[
     0
 ]
-CONNECTOME_DATA_DIR = "new_data"
+CONNECTOME_DATA_DIR = "connectome_data"
 
 # Training configuration
 num_epochs = 100

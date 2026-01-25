@@ -3,14 +3,13 @@ import random
 import numpy as np
 import torch
 
-from configs.config import CONNECTOME_DATA_DIR, PROJECT_ROOT
+from paths import PROJECT_ROOT
+from configs.config import CONNECTOME_DATA_DIR
 from trainyourfly.connectome_models.graph_builder import GraphBuilder
-from trainyourfly.data.data_processing import (
-    CSVLoader,
-    ImageProcessor,
-    NeuronMapper,
-    VoronoiCells,
-)
+from trainyourfly.utils.csv_loader import CSVLoader
+from trainyourfly.utils.image_processor import ImageProcessor
+from trainyourfly.eye_models.neuron_mapper import NeuronMapper
+from trainyourfly.eye_models.voronoi_cells import VoronoiCells
 from trainyourfly.utils.train_funcs import import_images
 from trainyourfly.utils.utils import paths_to_labels
 from trainyourfly.plots.fly_plotter import FlyPlotter

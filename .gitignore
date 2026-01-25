@@ -260,7 +260,7 @@ connections_refined.csv
 
 # data stuff
 *.feather
-new_data
+connectome_data
 supplementary_data/*
 
 # claude stuff
