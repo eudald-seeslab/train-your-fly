@@ -1,0 +1,202 @@
+# =============================================================================
+# TrainYourFly Configuration
+# =============================================================================
+# This file contains all configuration parameters for training connectome-based
+# neural networks. Copy this file and modify it for your experiments.
+#
+# Usage:
+#   from trainyourfly.config import Config
+#   config = Config.from_yaml("config.yaml")
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Data Configuration
+# -----------------------------------------------------------------------------
+
+# Path to your dataset folder (relative to current directory or absolute).
+# The folder must contain exactly two subfolders:
+#   {data_dir}/train/{class_name}/*.png
+#   {data_dir}/test/{class_name}/*.png
+# For the repo: "images/ans" (default training data)
+# For your own project: point to your data folder
+data_dir: "images/ans"
+
+# Directory containing connectome CSV files.
+# If missing, you will be prompted to download (~1.3GB) from GitHub releases.
+connectome_data_dir: "connectome_data"
+
+
+# -----------------------------------------------------------------------------
+# Training Configuration
+# -----------------------------------------------------------------------------
+
+# Number of images per training batch.
+# Reduce if you get out-of-memory errors.
+batch_size: 8
+
+# Total number of training epochs
+num_epochs: 100
+
+# Base learning rate for the AdamW optimizer
+base_lr: 0.0003
+
+# Early stopping patience: number of epochs without improvement before stopping
+patience: 2
+
+# Whether to save a checkpoint after every epoch
+save_every_checkpoint: false
+
+# Path to a checkpoint file to resume training from
+# resume_checkpoint: null
+
+# Random seed for reproducibility. Set to null for random initialization.
+random_seed: 1714
+
+
+# -----------------------------------------------------------------------------
+# Model Architecture
+# -----------------------------------------------------------------------------
+
+# Number of message passing iterations through the connectome graph.
+# More passes allow signals to propagate deeper through the network.
+NUM_CONNECTOME_PASSES: 3
+
+# Whether to train (learn) the synaptic edge weights.
+# This is the main source of trainable parameters.
+train_edges: true
+
+# Whether to train neuron activation thresholds.
+# Node embedding activation function, as in:
+# https://pytorch-geometric.readthedocs.io/en/latest/tutorial/create_gnn.html
+train_neurons: false
+
+# Which neurons to include in the model
+neurons: "all"  # "all" or "selected"
+
+# Method to aggregate decision neuron outputs for final classification
+final_layer: "mean"  # "mean" or "nn"
+
+# Some papers use a subset of neurons to compute the final decision
+# (e.g. https://www.science.org/doi/full/10.1126/sciadv.abq7592)
+# Set to a number to limit, or null to use all decision neurons.
+num_decision_making_neurons: null
+
+# Activation function for neuron embeddings
+activation_function: "leaky_relu"  # leaky_relu, relu, tanh, sigmoid
+
+# Normalization method for connectome output to avoid exploding gradients
+# before applying the activation function
+neuron_normalization: "min_max"  # min_max, log1p
+
+
+# -----------------------------------------------------------------------------
+# Biological Parameters
+# -----------------------------------------------------------------------------
+
+# Which eye to simulate
+eye: "right"  # "left" or "right"
+
+# Voronoi tessellation criteria for dividing the image into ommatidial regions
+voronoi_criteria: "R7"  # "R7" or "all"
+
+# According to the literature (see https://www.cell.com/cell/fulltext/S0092-8674(17)31498-8),
+# in the fly's retina, the R7 and R8 neurons inhibit each other.
+# Set to true if you want to simulate this behaviour.
+inhibitory_r7_r8: false
+
+# Cell types used to compute the final decision output (mushroom body Kenyon cells).
+# If null, the ones in connectome_data/rational_cell_types.csv will be used.
+rational_cell_types:
+  - "KCapbp-m"
+  - "KCapbp-ap2"
+  - "KCapbp-ap1"
+
+# Shut off some neurons based on their cell_type.
+# List the cell types you want to exclude from the network.
+filtered_celltypes: []
+
+# You can also filter a random fraction of the neurons for ablation studies.
+# Note: it's a fraction of the number of neurons after filtering by cell type
+# and also after removing the protected cell types (R1-6, R7, R8, and the rational cell types).
+# Set to null if you don't want to filter any neurons.
+filtered_fraction: null
+
+# Dropout for neuron activations to simulate that, for some reason
+# (oscillations, the neuron having fired too recently, etc.) the neuron does not fire.
+neuron_dropout: 0.0
+
+# Dropout for the decision making vector to simulate that the decision making
+# process also has some neurons not available all the time.
+decision_dropout: 0.0
+
+
+# -----------------------------------------------------------------------------
+# Synaptic Data Options
+# -----------------------------------------------------------------------------
+
+# Use refined (higher quality) synaptic connection data
+refined_synaptic_data: false
+
+# Apply biological limits to synaptic weights
+synaptic_limit: true
+
+# Apply log transform to synaptic weights.
+# This is to avoid exploding gradients, but there are other ways of doing it.
+log_transform_weights: false
+
+# As of October 2024, there is a new version of the connectome.
+# Set to true to use the newer version.
+new_connectome: true
+
+# Synapse randomization strategy for control experiments.
+# Options: null, "unconstrained", "pruned", "conn_pruned", "binned", "neuron_binned"
+randomization_strategy: null
+
+
+# -----------------------------------------------------------------------------
+# Device and Precision
+# -----------------------------------------------------------------------------
+
+# Device to use for computation
+device_type: "auto"  # "auto", "cuda", "cpu", "mps"
+
+# Tensor data type (sparse operations generally don't support half precision)
+dtype_str: "float32"  # float32, float16, float64, bfloat16
+
+# Sparse tensor layout
+sparse_layout_str: "sparse_coo"  # sparse_coo, sparse_csr
+
+
+# -----------------------------------------------------------------------------
+# Debugging
+# -----------------------------------------------------------------------------
+
+# Enable debugging mode (shorter runs, more verbose output)
+debugging: false
+
+# Number of batches per epoch when debugging mode is enabled
+debug_length: 2
+
+# Limit dataset size for quick experiments. Set to null to use full dataset.
+small_length: null
+
+# Number of validation samples. Set to null to use full validation set.
+validation_length: 400
+
+
+# -----------------------------------------------------------------------------
+# Visualization
+# -----------------------------------------------------------------------------
+
+# Plot types to generate during evaluation.
+# If empty list, will try to guess the plots from the class names.
+# If null, no plots will be generated.
+# Options: radius, contingency, distance, point_num, stripes, weber, colour
+plot_types: []
+
+# Colour for Voronoi cell boundaries in visualizations
+voronoi_colour: "#ff9933"
+
+# Line width for Voronoi boundaries in visualizations
+voronoi_width: 1

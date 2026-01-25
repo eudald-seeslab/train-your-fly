@@ -1,6 +1,7 @@
 import hashlib
 import os
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -16,12 +17,6 @@ def _build_minimal_adult_data(root) -> None:
     """Create a *very* small `connectome_data/` folder with the CSV files that
     ``DataProcessor`` needs to start up.  The data are synthetic but
     deterministic and tiny so that the test runs in <1 s on CPU.
-
-    Note: the connectome codebase now expects CSVs to live under the
-    directory defined by ``configs.config.CONNECTOME_DATA_DIR`` which is
-    ``"connectome_data"``.  The freeze test therefore builds that folder
-    hierarchy so the refactored ``DataProcessor`` can load the files
-    without having to maintain backward-compatibility shims.
     """
 
     data_dir = os.path.join(root, "connectome_data")
@@ -70,7 +65,7 @@ def _build_minimal_adult_data(root) -> None:
 # -----------------------------------------------------------------------------
 
 @pytest.mark.parametrize("device", ["cpu"])  # keep the test lightweight
-def test_dataprocessor_freeze(monkeypatch, tmp_path, device: str):
+def test_dataprocessor_freeze(tmp_path, device: str):
     """Golden-master test for the *current* behaviour of DataProcessor.process_batch.
 
     On first run the test creates a fixture file containing the SHA-256 hash of
@@ -79,25 +74,18 @@ def test_dataprocessor_freeze(monkeypatch, tmp_path, device: str):
     """
 
     # ------------------------------------------------------------------
-    # Create synthetic adult_data/ and point PROJECT_ROOT there
+    # Create synthetic connectome_data/ and data/ directories
     # ------------------------------------------------------------------
-    from importlib import import_module
-
-    proj_root = os.path.join(tmp_path, "project_root")
+    proj_root = str(tmp_path / "project_root")
     _build_minimal_adult_data(proj_root)
 
-    # Create empty images directory expected by configs.config
-    img_train_dir = os.path.join(proj_root, "images", "one_to_ten", "train", "class0")
+    # Create data directory structure (new format: data_dir/train/class/)
+    data_dir = os.path.join(proj_root, "data")
+    img_train_dir = os.path.join(data_dir, "train", "class0")
     os.makedirs(img_train_dir, exist_ok=True)
 
     # Write a 1×1 dummy PNG so PIL can open it
     Image.new("RGB", (1, 1), color="white").save(os.path.join(img_train_dir, "dummy.png"))
-
-    paths_mod = import_module("paths")
-    monkeypatch.setattr(paths_mod, "PROJECT_ROOT", proj_root, raising=True)
-
-    # Delay heavy imports until after we patched PROJECT_ROOT
-    from connectome.core.data_processing import DataProcessor
 
     # ------------------------------------------------------------------
     # Deterministic config stub
@@ -118,9 +106,13 @@ def test_dataprocessor_freeze(monkeypatch, tmp_path, device: str):
         dtype=torch.float32,
         DEVICE=torch.device(device),
         CLASSES=["class0", "class1"],
+        CONNECTOME_DATA_DIR=os.path.join(proj_root, "connectome_data"),
     )
 
-    dp = DataProcessor(cfg)
+    # Patch ensure_connectome_exists to skip download prompt during tests
+    with patch("trainyourfly.data.data_processing.ensure_connectome_exists"):
+        from trainyourfly.data.data_processing import DataProcessor
+        dp = DataProcessor(cfg)
 
     # ------------------------------------------------------------------
     # Build a *tiny* deterministic image batch (2×64×64 RGB)

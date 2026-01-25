@@ -3,8 +3,6 @@ import random
 import numpy as np
 import torch
 
-from paths import PROJECT_ROOT
-from configs.config import CONNECTOME_DATA_DIR
 from trainyourfly.connectome_models.graph_builder import GraphBuilder
 from trainyourfly.utils.csv_loader import CSVLoader
 from trainyourfly.utils.image_processor import ImageProcessor
@@ -12,6 +10,7 @@ from trainyourfly.eye_models.neuron_mapper import NeuronMapper
 from trainyourfly.eye_models.voronoi_cells import VoronoiCells
 from trainyourfly.utils.train_funcs import import_images
 from trainyourfly.utils.utils import paths_to_labels
+from trainyourfly.utils.downloader import ensure_connectome_exists
 from trainyourfly.plots.fly_plotter import FlyPlotter
 
 
@@ -35,7 +34,11 @@ class DataProcessor:
         # ------------------------------------------------------------------
         # 2. IO helpers and data paths
         # ------------------------------------------------------------------
-        self.data_dir = os.path.join(PROJECT_ROOT, CONNECTOME_DATA_DIR)
+        self.data_dir = config_.CONNECTOME_DATA_DIR
+        
+        # Ensure connectome data exists (prompt to download if not)
+        ensure_connectome_exists(self.data_dir)
+        
         self.csv_loader = CSVLoader()
 
         # ------------------------------------------------------------------

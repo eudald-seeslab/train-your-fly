@@ -242,9 +242,8 @@ class GraphBuilder:
             index_col=0,
         )
         grouped = (
-            conns.groupby(["pre_root_id", "post_root_id"])
-            .sum("syn_count")
-            .reset_index()
+            conns.groupby(["pre_root_id", "post_root_id"], as_index=False)["syn_count"]
+            .sum()
         )
         return grouped.sort_values(["pre_root_id", "post_root_id"])
 

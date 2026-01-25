@@ -12,35 +12,28 @@ cd train-your-fly
 pip install -e .
 ```
 
-### Download Connectome Data
-
-The connectome data is required but not included in the repository due to its size.
-
-1. Download `data.zip` from the [latest release](https://github.com/ecorreig/train-your-fly/releases/latest)
-2. Extract it to the project root:
-   ```bash
-   unzip data.zip -d /path/to/train-your-fly/
-   ```
-
-The connectome data is derived from [FlyWire](https://flywire.ai/). Please cite the original work when using this data.
-
 ## Quick Start
 
 ```python
+from trainyourfly.config import Config
 from trainyourfly.data.data_processing import DataProcessor
 from trainyourfly.connectome_models.graph_models import FullGraphModel
-from configs import config
+from trainyourfly.utils.utils import get_image_paths
 
-TRAIN_IMAGES_DIR = "images/ans/train"
-train_images = get_image_paths(TRAIN_IMAGES_DIR)
+# Create configuration
+config = Config(
+    data_dir="data",       # Path to your data folder
+    batch_size=8,
+)
 
-# Initialize the data processor (loads connectome, sets up Voronoi tessellation)
+# Initialize data processor (downloads connectome automatically if needed)
 data_processor = DataProcessor(config)
 
 # Create the connectome-based model
 model = FullGraphModel(data_processor, config).to(config.DEVICE)
 
 # Process a batch of images
+train_images = get_image_paths(config.TRAINING_DATA_DIR)[:config.batch_size]
 images, labels = data_processor.get_data_from_paths(train_images)
 inputs, labels = data_processor.process_batch(images, labels)
 
@@ -48,7 +41,33 @@ inputs, labels = data_processor.process_batch(images, labels)
 outputs = model(inputs)
 ```
 
-See `examples/simple_training.py` for a complete training example.
+See `quickstart.ipynb` for an interactive tutorial or `examples/simple_training.py` for a complete training script.
+
+## Data Structure
+
+Your data folder must have this structure:
+
+```
+my_project/
+├── config.yaml           # Optional: your configuration
+├── connectome_data/      # Downloaded automatically (~1.3GB)
+└── data/                 # Your images (set via data_dir)
+    ├── train/
+    │   ├── class_a/
+    │   │   ├── img001.png
+    │   │   └── img002.png
+    │   └── class_b/
+    │       └── ...
+    └── test/
+        ├── class_a/
+        │   └── ...
+        └── class_b/
+            └── ...
+```
+
+The connectome data (~1.3GB) is downloaded automatically on first run. You can also download it manually from the [releases page](https://github.com/ecorreig/train-your-fly/releases/latest).
+
+The connectome data is derived from [FlyWire](https://flywire.ai/). Please cite the original work when using this data.
 
 ## How It Works
 
@@ -57,34 +76,44 @@ See `examples/simple_training.py` for a complete training example.
 3. **Connectome Propagation**: Signals propagate through the actual synaptic connections of the fly brain
 4. **Decision Layer**: Output neurons (mushroom body) are used for classification
 
-## Project Structure
-
-```
-train-your-fly/
-├── configs/           # Configuration files
-├── connectome_data/   # Connectome data files (download from releases)
-├── examples/          # Example scripts
-├── src/trainyourfly/
-│   ├── connectome_models/  # Graph neural network models
-│   ├── data/              # Data processing pipeline
-│   ├── eye_models/        # Voronoi and neuron mapping
-│   ├── plots/             # Visualization utilities
-│   └── utils/             # Helper functions
-└── tests/             # Unit tests
-```
-
 ## Configuration
 
-Key parameters in `configs/config.py`:
+The easiest way to configure your experiments is with a YAML file:
+
+```python
+from trainyourfly import Config
+
+# Create an example config.yaml with all parameters documented
+Config.create_example("config.yaml")
+
+# Edit the file, then load it
+config = Config.from_yaml("config.yaml")
+```
+
+You can also create a config directly in Python:
+
+```python
+config = Config(data_dir="my_data", batch_size=16, num_epochs=50)
+
+# Save your config for reproducibility
+config.to_yaml("my_experiment.yaml")
+```
+
+Key parameters:
 
 | Parameter | Description |
 |-----------|-------------|
+| `data_dir` | Path to your data folder (with train/ and test/ subfolders) |
+| `connectome_data_dir` | Path to connectome data (default: `"connectome_data"`) |
 | `NUM_CONNECTOME_PASSES` | Number of message-passing iterations through the graph |
 | `train_edges` | Whether to train synaptic weights |
 | `train_neurons` | Whether to train neuron activation thresholds |
 | `eye` | Which eye to use (`"left"` or `"right"`) |
 | `voronoi_criteria` | Tessellation method (`"R7"` recommended) |
 | `rational_cell_types` | Neuron types used for decision-making |
+| `filtered_fraction` | Fraction of neurons to ablate (for experiments) |
+
+See the generated `config.yaml` for the full list of parameters with descriptions.
 
 ## License
 

@@ -13,14 +13,15 @@ The model processes images through:
 
 Prerequisites:
 -------------
-1. Install the package: pip install -e .
-2. Download connectome data from GitHub releases and extract to the project root
-   See: https://github.com/ecorreig/train-your-fly/releases
-3. Prepare your images in: images/{task_name}/train/{class_name}/*.png
+1. Install the package: pip install trainyourfly
+2. Connectome data will be downloaded automatically on first run (~1.3GB)
+3. Prepare your images in: {data_dir}/train/{class_name}/*.png
 
 Example directory structure:
-    images/
-    └── my_task/
+    my_project/
+    ├── config.yaml
+    ├── connectome_data/      # Downloaded automatically
+    └── data/
         ├── train/
         │   ├── class_a/
         │   │   ├── img001.png
@@ -33,136 +34,33 @@ Example directory structure:
             │   └── ...
             └── class_b/
                 └── ...
+
+Usage:
+------
+    # With default config
+    python examples/simple_training.py
+
+    # With YAML config
+    python examples/simple_training.py --config config.yaml
 """
 
 import os
 import sys
 import random
-from dataclasses import dataclass, field
-from typing import List, Optional, Callable
+import argparse
+from typing import List
 
 import numpy as np
 import torch
 from torch import nn
-from torch.nn.functional import leaky_relu
 from torch.optim import AdamW
 from tqdm import tqdm
 
 # Ensure project root is in path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from paths import PROJECT_ROOT
-
-
-def check_data_exists():
-    """Check if required connectome data files exist."""
-    data_dir = os.path.join(PROJECT_ROOT, "connectome_data")
-    required_files = [
-        "classification.csv",
-        "right_visual_positions_all_neurons.csv",
-    ]
-    
-    missing = []
-    if not os.path.exists(data_dir):
-        missing.append(f"Directory '{data_dir}' does not exist")
-    else:
-        for f in required_files:
-            if not os.path.exists(os.path.join(data_dir, f)):
-                missing.append(f)
-    
-    if missing:
-        raise FileNotFoundError(
-            f"Missing connectome data files: {missing}\n\n"
-            "Please download the connectome data from the GitHub releases:\n"
-            "  https://github.com/ecorreig/train-your-fly/releases\n\n"
-            "Extract the zip file to the project root."
-        )
-
-
-@dataclass
-class SimpleConfig:
-    """
-    Minimal configuration for training.
-    
-    This dataclass contains all the parameters needed to configure the model.
-    For a full list of options, see configs/config.py
-    """
-    # Data paths
-    data_type: str = "my_task"  # Name of your task folder in images/
-    CONNECTOME_DATA_DIR: str = "connectome_data"
-    
-    # Training parameters
-    batch_size: int = 4
-    num_epochs: int = 10
-    base_lr: float = 0.0003
-    
-    # Model architecture
-    NUM_CONNECTOME_PASSES: int = 3  # How many times to propagate through the graph
-    train_edges: bool = True  # Train synaptic weights
-    train_neurons: bool = False  # Train neuron activation thresholds
-    final_layer: str = "mean"  # "mean" or "nn" - how to aggregate decision neurons
-    
-    # Biological parameters
-    eye: str = "right"  # Which eye to use ("left" or "right")
-    neurons: str = "all"  # "all" or "selected" neurons
-    voronoi_criteria: str = "R7"  # Tessellation based on R7 neurons
-    inhibitory_r7_r8: bool = False  # R7/R8 mutual inhibition
-    rational_cell_types: List[str] = field(
-        default_factory=lambda: ["KCapbp-m", "KCapbp-ap2", "KCapbp-ap1"]
-    )
-    num_decision_making_neurons: Optional[int] = None
-    
-    # Normalization and regularization
-    neuron_normalization: str = "min_max"  # "min_max" or "log1p"
-    lambda_func: Callable = leaky_relu
-    neuron_dropout: float = 0.0
-    decision_dropout: float = 0.0
-    filtered_celltypes: List[str] = field(default_factory=list)
-    filtered_fraction: float = 0.25
-    
-    # Synaptic constraints
-    refined_synaptic_data: bool = False
-    synaptic_limit: bool = True
-    log_transform_weights: bool = False
-    new_connectome: bool = True
-    randomization_strategy: Optional[str] = None  # None, "unconstrained", "binned", etc.
-    
-    # Device and precision
-    device_type: str = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype: torch.dtype = torch.float32
-    sparse_layout: torch.layout = torch.sparse_coo
-    random_seed: int = 42
-    
-    # Computed properties (set in __post_init__)
-    DEVICE: torch.device = field(init=False)
-    TRAINING_DATA_DIR: str = field(init=False)
-    TESTING_DATA_DIR: str = field(init=False)
-    CLASSES: List[str] = field(init=False)
-    
-    def __post_init__(self):
-        self.DEVICE = torch.device(self.device_type)
-        self.TRAINING_DATA_DIR = os.path.join(PROJECT_ROOT, "images", self.data_type, "train")
-        self.TESTING_DATA_DIR = os.path.join(PROJECT_ROOT, "images", self.data_type, "test")
-        
-        if os.path.exists(self.TRAINING_DATA_DIR):
-            self.CLASSES = sorted(os.listdir(self.TRAINING_DATA_DIR))
-        else:
-            self.CLASSES = []
-
-
-def get_image_paths(directory: str, limit: Optional[int] = None) -> List[str]:
-    """Get all image paths from a directory with class subdirectories."""
-    paths = []
-    for class_name in sorted(os.listdir(directory)):
-        class_dir = os.path.join(directory, class_name)
-        if os.path.isdir(class_dir):
-            for img_name in os.listdir(class_dir):
-                if img_name.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    paths.append(os.path.join(class_dir, img_name))
-    
-    if limit:
-        paths = paths[:limit]
-    return paths
+from trainyourfly.config import Config
+from trainyourfly.utils.utils import get_image_paths
 
 
 def select_random_batch(
@@ -184,7 +82,7 @@ def select_random_batch(
     return selected, already_used
 
 
-def train(config: SimpleConfig):
+def train(config: Config):
     """
     Main training function.
     
@@ -192,18 +90,16 @@ def train(config: SimpleConfig):
     connectome as the neural network architecture.
     """
     # Set random seeds for reproducibility
-    torch.manual_seed(config.random_seed)
-    np.random.seed(config.random_seed)
-    random.seed(config.random_seed)
-    
-    # Check data exists
-    check_data_exists()
+    if config.random_seed is not None:
+        torch.manual_seed(config.random_seed)
+        np.random.seed(config.random_seed)
+        random.seed(config.random_seed)
     
     if not os.path.exists(config.TRAINING_DATA_DIR):
         raise FileNotFoundError(
             f"Training data directory not found: {config.TRAINING_DATA_DIR}\n"
             f"Please create the directory structure:\n"
-            f"  images/{config.data_type}/train/class_name/*.png"
+            f"  {config.data_dir}/train/class_name/*.png"
         )
     
     print(f"Training on device: {config.DEVICE}")
@@ -219,7 +115,8 @@ def train(config: SimpleConfig):
     
     # Create the connectome-based model
     random_generator = torch.Generator(device=config.DEVICE)
-    random_generator.manual_seed(config.random_seed)
+    if config.random_seed is not None:
+        random_generator.manual_seed(config.random_seed)
     
     model = FullGraphModel(data_processor, config, random_generator).to(config.DEVICE)
     print(f"Model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
@@ -277,10 +174,10 @@ def train(config: SimpleConfig):
               f"Accuracy={100.*correct/total:.1f}%")
     
     print("\nTraining complete!")
-    return model
+    return model, data_processor
 
 
-def evaluate(model, data_processor, config: SimpleConfig):
+def evaluate(model, data_processor, config: Config):
     """Evaluate the model on test data."""
     if not os.path.exists(config.TESTING_DATA_DIR):
         print(f"No test directory found at {config.TESTING_DATA_DIR}")
@@ -317,19 +214,60 @@ def evaluate(model, data_processor, config: SimpleConfig):
     print(f"Test Accuracy: {100.*correct/total:.1f}%")
 
 
-if __name__ == "__main__":
-    # Create configuration
-    config = SimpleConfig(
-        data_type="my_task",  # Change this to your task folder name
-        batch_size=4,
-        num_epochs=5,
-        NUM_CONNECTOME_PASSES=3,
+def main():
+    parser = argparse.ArgumentParser(
+        description="Train a Drosophila connectome-based neural network"
     )
+    parser.add_argument(
+        "--config", "-c",
+        type=str,
+        default=None,
+        help="Path to YAML configuration file"
+    )
+    parser.add_argument(
+        "--data-dir", "-d",
+        type=str,
+        default="data",
+        help="Path to your dataset folder (must contain train/ and test/)"
+    )
+    parser.add_argument(
+        "--epochs", "-e",
+        type=int,
+        default=5,
+        help="Number of training epochs"
+    )
+    parser.add_argument(
+        "--batch-size", "-b",
+        type=int,
+        default=4,
+        help="Batch size"
+    )
+    parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="Run evaluation on test set after training"
+    )
+    args = parser.parse_args()
+    
+    # Create configuration
+    if args.config:
+        print(f"Loading config from: {args.config}")
+        config = Config.from_yaml(args.config)
+    else:
+        config = Config(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            num_epochs=args.epochs,
+            NUM_CONNECTOME_PASSES=3,
+        )
     
     # Train the model
-    model = train(config)
+    model, data_processor = train(config)
     
     # Optionally evaluate on test set
-    # from trainyourfly.data.data_processing import DataProcessor
-    # data_processor = DataProcessor(config)
-    # evaluate(model, data_processor, config)
+    if args.evaluate:
+        evaluate(model, data_processor, config)
+
+
+if __name__ == "__main__":
+    main()

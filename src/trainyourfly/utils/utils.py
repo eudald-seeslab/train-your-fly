@@ -18,7 +18,7 @@ def get_files_from_directory(directory_path):
     return files
 
 
-def get_image_paths(images_dir, small_length):
+def get_image_paths(images_dir, small_length=None):
     images = get_files_from_directory(images_dir)
     assert len(images) > 0, f"No images found in {images_dir}."
 
