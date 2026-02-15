@@ -81,8 +81,3 @@ class EarlyStopping:
     def should_stop(self, loss, accuracy=None):
         self._update_stopper(loss, accuracy)
         return self.early_stop
-
-
-def store_intermediate_output(module, input, output):
-    if not module.training:
-        module.intermediate_output = output.clone().detach()
