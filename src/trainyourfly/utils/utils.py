@@ -26,9 +26,12 @@ def get_image_paths(images_dir, small_length=None):
         try:
             images = random.sample(images, small_length)
         except ValueError:
-            print(
-                f"Not enough images in {images_dir} to sample {small_length}."
-                f"Continuing with {len(images)}."
+            import logging
+            logging.getLogger(__name__).warning(
+                "Not enough images in %s to sample %d. Continuing with %d.",
+                images_dir,
+                small_length,
+                len(images),
             )
 
     return images
@@ -82,18 +85,17 @@ def paths_to_labels(paths, classes):
 
 
 def select_random_images(all_files, batch_size, already_selected):
-    # Filter out files that have already been selected
-    remaining_files = [f for f in all_files if f not in already_selected]
+    """Select a random batch of files, resetting when most have been used."""
+    available = [f for f in all_files if f not in already_selected]
 
-    # Select batch_size random videos from the remaining files
-    selected_files = random.sample(
-        remaining_files, min(batch_size, len(remaining_files))
-    )
+    if len(available) < batch_size:
+        available = list(all_files)
+        already_selected.clear()
 
-    # Update the already_selected list
-    already_selected.extend(selected_files)
+    selected = random.sample(available, min(batch_size, len(available)))
+    already_selected.extend(selected)
 
-    return selected_files, already_selected
+    return selected, already_selected
 
 
 def compute_accuracy(probabilities, labels):

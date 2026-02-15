@@ -239,7 +239,6 @@ class GraphBuilder:
                 "post_root_id": "string",
                 "syn_count": np.int32,
             },
-            index_col=0,
         )
         grouped = (
             conns.groupby(["pre_root_id", "post_root_id"], as_index=False)["syn_count"]

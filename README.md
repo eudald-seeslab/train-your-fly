@@ -15,33 +15,28 @@ pip install -e .
 ## Quick Start
 
 ```python
-from trainyourfly.config import Config
-from trainyourfly.data.data_processing import DataProcessor
-from trainyourfly.connectome_models.graph_models import FullGraphModel
-from trainyourfly.utils.utils import get_image_paths
+from trainyourfly import Config, train, evaluate
 
-# Create configuration
-config = Config(
-    data_dir="data",       # Path to your data folder
-    batch_size=8,
-)
-
-# Initialize data processor (downloads connectome automatically if needed)
-data_processor = DataProcessor(config)
-
-# Create the connectome-based model
-model = FullGraphModel(data_processor, config).to(config.DEVICE)
-
-# Process a batch of images
-train_images = get_image_paths(config.TRAINING_DATA_DIR)[:config.batch_size]
-images, labels = data_processor.get_data_from_paths(train_images)
-inputs, labels = data_processor.process_batch(images, labels)
-
-# Forward pass through the connectome
-outputs = model(inputs)
+config = Config(data_dir="my_data", num_epochs=10)
+result = train(config)
+accuracy = evaluate(result)
 ```
 
-See `quickstart.ipynb` for an interactive tutorial or `examples/simple_training.py` for a complete training script.
+That's it. `result` contains the trained model, data processor, and training history.
+
+You can customise the optimizer, loss, or plug in experiment tracking:
+
+```python
+from torch import nn
+
+result = train(
+    config,
+    criterion=nn.CrossEntropyLoss(label_smoothing=0.1),
+    tracker=my_tracker,  # WandBTracker, CSVTracker, etc.
+)
+```
+
+See `quickstart.ipynb` for an interactive tutorial or `examples/` for complete scripts.
 
 ## Data Structure
 
@@ -114,6 +109,74 @@ Key parameters:
 | `filtered_fraction` | Fraction of neurons to ablate (for experiments) |
 
 See the generated `config.yaml` for the full list of parameters with descriptions.
+
+## Experiment Tracking
+
+The library is agnostic to the experiment tracking tool you use. An `ExperimentTracker` protocol defines the interface that any tracker must satisfy:
+
+```python
+class ExperimentTracker(Protocol):
+    def initialize(self, config) -> None: ...
+    def log_metrics(self, epoch, loss, accuracy, *, task=None) -> None: ...
+    def log_image(self, figure, name, title, *, task=None) -> None: ...
+    def log_dataframe(self, df, title) -> None: ...
+    def log_validation(self, loss, accuracy, results_df, plots, *, task=None) -> None: ...
+    def finish(self) -> None: ...
+```
+
+Pass any tracker that implements these methods to the training function. By default a `NullTracker` is used (no tracking).
+
+### Using Weights & Biases
+
+Install the optional dependency and use the built-in `WandBTracker`:
+
+```bash
+pip install train-your-fly[wandb]
+# or: pip install wandb
+```
+
+```python
+from trainyourfly.integrations.wandb_tracker import WandBTracker
+
+tracker = WandBTracker(project="my-fly-project", group="experiment-1")
+train(config, tracker=tracker)
+```
+
+See `examples/training_with_wandb.py` for a full script.
+
+### Writing Your Own Tracker
+
+You can integrate any tracking tool (MLflow, TensorBoard, CSV files, ...) by implementing the same methods. See `examples/training_with_csv_logger.py` for a complete example that writes metrics to a CSV file and saves plots to disk:
+
+```python
+class CSVTracker:
+    def initialize(self, config):
+        self._file = open("metrics.csv", "w")
+        # ...
+
+    def log_metrics(self, epoch, loss, accuracy, *, task=None):
+        self._file.write(f"{epoch},{loss},{accuracy}\n")
+
+    def log_image(self, figure, name, title, *, task=None):
+        figure.savefig(f"images/{title}_{name}.png")
+
+    def finish(self):
+        self._file.close()
+```
+
+## Logging
+
+The library uses Python's standard `logging` module for console output. All messages go through the `trainyourfly` logger, which is configured with coloured formatting by default. You can control verbosity:
+
+```python
+import logging
+
+# Quieter (only warnings and errors)
+logging.getLogger("trainyourfly").setLevel(logging.WARNING)
+
+# More verbose (includes debug messages)
+logging.getLogger("trainyourfly").setLevel(logging.DEBUG)
+```
 
 ## License
 

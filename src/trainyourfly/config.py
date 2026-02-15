@@ -52,6 +52,7 @@ SPARSE_LAYOUTS = {
 }
 
 
+
 @dataclass
 class Config:
     """Configuration for TrainYourFly models and training.
@@ -110,7 +111,7 @@ class Config:
     resume_checkpoint: Optional[str] = None
     """Path to checkpoint file to resume training from."""
     
-    random_seed: Optional[int] = 42
+    random_seed: Optional[int] = 1714
     """Random seed for reproducibility. Set to None for random initialization."""
     
     # =========================================================================
@@ -162,7 +163,7 @@ class Config:
     filtered_celltypes: List[str] = field(default_factory=list)
     """Cell types to exclude from the network."""
     
-    filtered_fraction: Optional[float] = 0.25
+    filtered_fraction: Optional[float] = None
     """Fraction of non-essential neurons to randomly remove (ablation study)."""
     
     neuron_dropout: float = 0.0
@@ -469,7 +470,7 @@ save_every_checkpoint: false
 # resume_checkpoint: null
 
 # Random seed for reproducibility. Set to null for random initialization.
-random_seed: 42
+random_seed: 1714
 
 
 # -----------------------------------------------------------------------------
@@ -600,8 +601,9 @@ voronoi_width: 1
         with open(path, "w") as f:
             f.write(example_config)
         
-        print(f"Created example config at '{path}'")
-        print("Edit this file to configure your experiment, then load it with:")
-        print(f"  config = Config.from_yaml('{path}')")
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.info("Created example config at '%s'.", path)
+        _logger.info("Edit this file, then load with: Config.from_yaml('%s')", path)
         
         return path

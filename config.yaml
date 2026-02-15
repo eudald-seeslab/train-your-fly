@@ -38,7 +38,7 @@ batch_size: 8
 # Total number of training epochs
 num_epochs: 100
 
-# Base learning rate for the AdamW optimizer
+# Base learning rate for the optimizer
 base_lr: 0.0003
 
 # Early stopping patience: number of epochs without improvement before stopping

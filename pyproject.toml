@@ -20,13 +20,13 @@ dependencies = [
   "seaborn>=0.13",
   "pillow>=10.0",
   "imageio>=2.31",
-  "wandb>=0.16"
 ]
 
 [project.optional-dependencies]
 # Heavy ML stack (PyTorch/PyG) is installed via platform-specific wheels; see setup instructions.
 pytorch = []
 pyg = []
+wandb = ["wandb>=0.16"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trainyourfly"]

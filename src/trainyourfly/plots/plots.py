@@ -1,3 +1,4 @@
+import logging
 import os
 import traceback
 
@@ -114,7 +115,7 @@ def plot_results(results_, plot_types, classes=None):
                 plots.append(plot_contingency_table(results_.copy(), classes))
     except Exception:
         error = traceback.format_exc()
-        print(f"Error plotting results: {error}")
+        logging.getLogger(__name__).error("Error plotting results: %s", error)
 
     return plots
 
