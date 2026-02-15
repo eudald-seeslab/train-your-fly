@@ -4,6 +4,8 @@ A library for training biologically constrained neural networks using the *Droso
 
 This library processes visual input through a model of the fly's compound eye and propagates signals through the actual synaptic connectivity of the fly brain.
 
+**Note:** this repo was integrated with [this one](https://github.com/eudald-seeslab/connectome) as a part of a research project. I am in the process of decoupling it completely, but there might be some leftover code that makes little sense as it is. Furthremore, this is also why you will see a milion configuration parameters in config.yaml, a fair amount of which are quite useless; I will clean it at some point.
+
 ## Installation
 
 ```bash
@@ -40,29 +42,40 @@ See `quickstart.ipynb` for an interactive tutorial or `examples/` for complete s
 
 ## Data Structure
 
-Your data folder must have this structure:
+There are two types of data needed, the connectome data, and the images used for training and testing. The two need to follow this structure:
 
-```
-my_project/
-├── config.yaml           # Optional: your configuration
-├── connectome_data/      # Downloaded automatically (~1.3GB)
-└── data/                 # Your images (set via data_dir)
-    ├── train/
-    │   ├── class_a/
-    │   │   ├── img001.png
-    │   │   └── img002.png
-    │   └── class_b/
-    │       └── ...
-    └── test/
-        ├── class_a/
-        │   └── ...
-        └── class_b/
-            └── ...
-```
+### Connectome data
 
 The connectome data (~1.3GB) is downloaded automatically on first run. You can also download it manually from the [releases page](https://github.com/ecorreig/train-your-fly/releases/latest).
 
 The connectome data is derived from [FlyWire](https://flywire.ai/). Please cite the original work when using this data.
+
+It resides in the connectome_data directory.
+
+### Train/test images
+
+The directory schema is:
+```
+images/       
+├── train/
+   ├── class_a/
+   │   ├── img001.png
+   │   └── img002.png
+   └── class_b/
+       └── ...
+└── test/
+   ├── class_a/
+   │   └── ...
+   └── class_b/
+        └── ...
+```
+
+I created the images using the [CogStim](https://github.com/eudald-seeslab/cogstim). For example, for approximate number system images, you may use:
+
+```bash
+cogstim -ans --train-num 100 --test-num 40
+```
+
 
 ## How It Works
 
