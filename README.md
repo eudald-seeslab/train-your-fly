@@ -193,4 +193,4 @@ logging.getLogger("trainyourfly").setLevel(logging.DEBUG)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
