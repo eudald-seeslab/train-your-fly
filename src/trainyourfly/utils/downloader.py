@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # GitHub release URL for connectome data
 CONNECTOME_DATA_URL = (
-    "https://github.com/ecorreig/train-your-fly/releases/latest/download/data.zip"
+    "https://github.com/eudald-seeslab/train-your-fly/releases/latest/download/data.zip"
 )
 
 # Files that must exist for the connectome to be considered valid
