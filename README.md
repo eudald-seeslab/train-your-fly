@@ -238,7 +238,7 @@ After testing, `plot_results` in `trainyourfly.plots.plots` turns a results tabl
 
 ![Weber ratio](docs/images/weber_ratio.png)
 
-*Numerical-discrimination accuracy as a function of the Weber ratio between the two dot counts, and the fitted Weber fraction, for the biological connectome and four randomized wirings (companion study).*
+*Task accuracies from the companion study for the biological connectome and four randomized wirings: colour discrimination, shape recognition, numerical discrimination, and accuracy as a function of the Weber ratio between the two dot counts.*
 
 ## Logging
 
