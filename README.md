@@ -1,20 +1,28 @@
-# Train Your Fly
+# train-your-fly
 
-A library for training biologically constrained neural networks using the *Drosophila melanogaster* connectome.
+**Turn the fruit fly connectome into a trainable vision model.**
 
-This library processes visual input through a model of the fly's compound eye and propagates signals through the actual synaptic connectivity of the fly brain.
+`train-your-fly` couples the proofread FlyWire whole-brain connectome of *Drosophila melanogaster* to an anatomically faithful model of its compound eye, and wraps the result as a PyTorch Geometric model that you can train on image-classification tasks. The wiring diagram never changes. What is learned is one scalar gain per synapse, optionally one threshold per neuron, and a linear readout from the Kenyon cells of the mushroom body.
 
-**Note:** this repo was integrated with [this one](https://github.com/eudald-seeslab/connectome) as a part of a research project. I am in the process of decoupling it completely, but there might be some leftover code that makes little sense as it is. Furthremore, this is also why you will see a milion configuration parameters in config.yaml, a fair amount of which are quite useless; I will clean it at some point.
+![From stimulus to decision](docs/images/pipeline.png)
+
+It is the core model and training infrastructure behind *Structure alone supports efficient visual computation in the Drosophila visual system* (Eudald Correig-Fraga, Roger Guimerà, and Marta Sales-Pardo). The study-specific experiments, the randomized-connectome ensembles, and the paper figures live in the companion [connectome](https://github.com/eudald-seeslab/connectome) repository. The stimuli come from [cogstim](https://github.com/eudald-seeslab/cogstim).
+
+> **Note:** this library was extracted from the companion repository and is still being decoupled from it. Some leftover code and configuration parameters remain; they will be cleaned up over time.
 
 ## Installation
 
+Python 3.10 or newer. PyTorch and PyTorch Geometric are not installed automatically: pick the wheels for your CUDA version following the [PyTorch](https://pytorch.org/get-started/locally/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) instructions; `torch-scatter` and `torch-sparse` are required. The companion paper used `torch==2.6.0`, `torch-geometric==2.6.1`, `torch-scatter==2.1.2`, and `torch-sparse==0.6.18`. Then:
+
 ```bash
-git clone https://github.com/ecorreig/train-your-fly.git
+git clone https://github.com/eudald-seeslab/train-your-fly.git
 cd train-your-fly
 pip install -e .
 ```
 
-## Quick Start
+Weights & Biases support is optional: `pip install -e ".[wandb]"`.
+
+## Quick start
 
 ```python
 from trainyourfly import Config, train, evaluate
@@ -24,9 +32,9 @@ result = train(config)
 accuracy = evaluate(result)
 ```
 
-That's it. `result` contains the trained model, data processor, and training history.
+That's it. `result` contains the trained model, the data processor (eye model plus connectome graph), the training history, and the config.
 
-You can customise the optimizer, loss, or plug in experiment tracking:
+You can customise the optimizer, the loss, or plug in experiment tracking:
 
 ```python
 from torch import nn
@@ -40,49 +48,82 @@ result = train(
 
 See `quickstart.ipynb` for an interactive tutorial or `examples/` for complete scripts.
 
-## Data Structure
+## Data you need
 
-There are two types of data needed, the connectome data, and the images used for training and testing. The two need to follow this structure:
+Two kinds of data are needed: the connectome, and the images used for training and testing.
 
 ### Connectome data
 
-The connectome data (~1.3GB) is downloaded automatically on first run. You can also download it manually from the [releases page](https://github.com/ecorreig/train-your-fly/releases/latest).
+The connectome data (~1.3 GB) is downloaded automatically into `connectome_data/` on first run. You can also download it manually from the [releases page](https://github.com/eudald-seeslab/train-your-fly/releases/latest) and unzip it there, or point `connectome_data_dir` somewhere else.
 
-The connectome data is derived from [FlyWire](https://flywire.ai/). Please cite the original work when using this data.
+| File | Contents |
+| --- | --- |
+| `connections.csv` | `pre_root_id`, `post_root_id`, `syn_count` for every connected neuron pair (FlyWire v783 proofread connections) |
+| `classification.csv` | `root_id`, `cell_type`, `side` for every neuron (FlyWire annotations v2.1.0) |
+| `right_visual_positions_all_neurons.csv` | Photoreceptor identities and their projected `x_axis`, `y_axis` coordinates |
+| `rational_cell_types.csv` | Readout cell types, only needed when `rational_cell_types = None` |
+| `connections_random_<strategy>.csv` | Optional randomized graphs, selected with `randomization_strategy` |
 
-It resides in the connectome_data directory.
+The connectome data is derived from [FlyWire](https://flywire.ai/). The exact biological and randomized graphs used in the paper, the annotation table, and the photoreceptor mapping are archived on Zenodo at [10.5281/zenodo.21549559](https://doi.org/10.5281/zenodo.21549559) (CC BY 4.0). Building them from the raw FlyWire release is documented in the [connectome](https://github.com/eudald-seeslab/connectome) repository. Please cite the original FlyWire work when using this data (see [Citation](#citation)).
 
 ### Train/test images
 
-The directory schema is:
+Stimuli are plain PNG folders, one subfolder per class, under `train/` and `test/`. Point `data_dir` at the folder that contains them:
+
 ```
-images/       
+my_data/
 ├── train/
-   ├── class_a/
-   │   ├── img001.png
-   │   └── img002.png
-   └── class_b/
-       └── ...
+│   ├── class_a/
+│   │   ├── img001.png
+│   │   └── img002.png
+│   └── class_b/
+│       └── ...
 └── test/
-   ├── class_a/
-   │   └── ...
-   └── class_b/
+    ├── class_a/
+    │   └── ...
+    └── class_b/
         └── ...
 ```
 
-I created the images using the [CogStim](https://github.com/eudald-seeslab/cogstim). For example, for approximate number system images, you may use:
+[cogstim](https://github.com/eudald-seeslab/cogstim) produces them in one command. For example, for approximate-number-system images:
 
 ```bash
-cogstim -ans --train-num 100 --test-num 40
+pip install cogstim
+cogstim ans --ratios easy --train-num 100 --test-num 40
 ```
 
+## How it works
 
-## How It Works
+**1. An eye reconstructed from the connectome.** The 3D positions of the roughly 8,000 photoreceptor terminals (R1-6, R7, R8) of one eye are projected onto a plane, and a Voronoi tessellation seeded at the R7 positions gives one catchment region per ommatidium. Every 512×512 input image is averaged inside each region, so the model sees the world at the fly's angular resolution.
 
-1. **Voronoi Tessellation**: Images are divided into regions corresponding to the fly's ommatidia (eye units)
-2. **Photoreceptor Activation**: Each region activates R1-6, R7, and R8 photoreceptors based on color
-3. **Connectome Propagation**: Signals propagate through the actual synaptic connections of the fly brain
-4. **Decision Layer**: Output neurons (mushroom body) are used for classification
+![Eye model](docs/images/eye_model.png)
+
+*Left: photoreceptor terminals of the right eye and their Voronoi tessellation. Middle: the tessellation activated by the stimuli on the right. A yellow star drives the green- and red-sensitive R8 receptors, and a blue disc drives the UV-sensitive R7 receptors.*
+
+**2. Spectral channels.** Each photoreceptor reads the colour channel that matches its spectral sensitivity, shifted from the fly's UV-centred range into RGB: R7 reads blue, R8p reads green, R8y reads red, and R1-6 read overall luminance. Mutual inhibition between R7 and R8 can be switched on with `inhibitory_r7_r8`.
+
+**3. Message passing over the connectome.** Neurons are nodes and directed edges carry synapse counts $e_{ji}$. For $K$ steps, each neuron sums the activity of its presynaptic partners, weighted by the synapse count and a learned gain, and applies a nonlinearity:
+
+$$x_i^{(k)} = \gamma\Big(\sum_{j \to i} x_j^{(k-1)}\, e_{ji}\, \omega_{ji} - \xi_i\Big), \qquad \omega_{ji} = \tanh(\theta_{ji}) \in [-1, 1].$$
+
+Neurons keep no state between steps: each step is computed from incoming input alone. Three steps (`NUM_CONNECTOME_PASSES`) are enough for retinal activity to reach the mushroom body.
+
+![Activation propagation](docs/images/activation_propagation.png)
+
+*3D positions of the neurons active after each message-passing step, for the biological graph and four randomized wirings (figure from the companion study).*
+
+**4. Readout.** After the last step, the activity of the Kenyon cells (by default `KCapbp-m`, `KCapbp-ap1`, and `KCapbp-ap2`) is averaged, or fed neuron by neuron to a linear layer, and passed to a linear classifier.
+
+## What gets trained
+
+| Regime | `train_edges` | `train_neurons` | Learned parameters |
+| --- | --- | --- | --- |
+| Classifier only | `False` | `False` | Linear readout |
+| Edges only (paper default) | `True` | `False` | One gain $\theta_{ji}$ per directed connection, plus readout |
+| Thresholds only | `False` | `True` | One threshold $\xi_i$ per neuron, plus readout |
+| Edges + thresholds | `True` | `True` | Both, plus readout |
+
+With `synaptic_limit = True`, the gains are squashed with `tanh` into [-1, 1], so a synapse can become excitatory or inhibitory. With `refined_synaptic_data = True`, the synapse counts carry their neurotransmitter sign and the gains are squashed with a sigmoid into [0, 1] instead.
 
 ## Configuration
 
@@ -107,23 +148,33 @@ config = Config(data_dir="my_data", batch_size=16, num_epochs=50)
 config.to_yaml("my_experiment.yaml")
 ```
 
-Key parameters:
+### Configuration reference
 
-| Parameter | Description |
-|-----------|-------------|
-| `data_dir` | Path to your data folder (with train/ and test/ subfolders) |
-| `connectome_data_dir` | Path to connectome data (default: `"connectome_data"`) |
-| `NUM_CONNECTOME_PASSES` | Number of message-passing iterations through the graph |
-| `train_edges` | Whether to train synaptic weights |
-| `train_neurons` | Whether to train neuron activation thresholds |
-| `eye` | Which eye to use (`"left"` or `"right"`) |
-| `voronoi_criteria` | Tessellation method (`"R7"` recommended) |
-| `rational_cell_types` | Neuron types used for decision-making |
-| `filtered_fraction` | Fraction of neurons to ablate (for experiments) |
+The options that change the model. See the generated `config.yaml` for the full list with descriptions.
 
-See the generated `config.yaml` for the full list of parameters with descriptions.
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `data_dir` | `"data"` | Folder with `train/` and `test/` subfolders |
+| `connectome_data_dir` | `"connectome_data"` | Folder with the connectome CSVs (downloaded on first run) |
+| `batch_size` / `num_epochs` / `base_lr` | `8` / `100` / `0.0003` | Training hyperparameters (AdamW by default) |
+| `NUM_CONNECTOME_PASSES` | `3` | Message-passing steps |
+| `train_edges` / `train_neurons` | `True` / `False` | Learn synaptic gains / neuronal thresholds |
+| `synaptic_limit` | `True` | Bound the gains with `tanh` (a sigmoid with signed data) |
+| `refined_synaptic_data` | `False` | Use neurotransmitter-signed synapse counts |
+| `randomization_strategy` | `None` | Load `connections_random_<strategy>.csv` instead of the biological graph |
+| `eye` | `"right"` | Which eye's photoreceptors seed the tessellation |
+| `voronoi_criteria` | `"R7"` | Seed cells at R7 terminals, or `"all"` for random seeds regenerated every batch |
+| `rational_cell_types` | three Kenyon-cell types | Readout populations |
+| `final_layer` | `"mean"` | Average the readout population, or `"nn"` for one weight per readout neuron |
+| `num_decision_making_neurons` | `None` | Read out from a random subset of that size |
+| `filtered_celltypes` / `filtered_fraction` | `[]` / `None` | Drop cell types, or keep only this fraction of non-protected neurons (`None` keeps all) |
+| `neuron_dropout` / `decision_dropout` | `0` / `0` | Dropout on synaptic messages / on the readout |
+| `inhibitory_r7_r8` | `False` | R7 and R8 inhibit each other inside an ommatidium |
+| `log_transform_weights` | `False` | Use `log1p(syn_count)` as the edge weight |
 
-## Experiment Tracking
+Photoreceptors and the readout cell types are protected and can never be filtered out.
+
+## Experiment tracking
 
 The library is agnostic to the experiment tracking tool you use. An `ExperimentTracker` protocol defines the interface that any tracker must satisfy:
 
@@ -157,7 +208,7 @@ train(config, tracker=tracker)
 
 See `examples/training_with_wandb.py` for a full script.
 
-### Writing Your Own Tracker
+### Writing your own tracker
 
 You can integrate any tracking tool (MLflow, TensorBoard, CSV files, ...) by implementing the same methods. See `examples/training_with_csv_logger.py` for a complete example that writes metrics to a CSV file and saves plots to disk:
 
@@ -177,6 +228,18 @@ class CSVTracker:
         self._file.close()
 ```
 
+## Looking inside
+
+`DataProcessor.plot_input_images(image)` returns the three-panel diagnostic below, which `train()` logs to the tracker at the start of every epoch: the tessellated retina, the photoreceptors activated by the current image, and the image itself.
+
+![Training diagnostic](docs/images/training_diagnostic.png)
+
+After testing, `plot_results` in `trainyourfly.plots.plots` turns a results table into task-specific plots, and `guess_your_plots(config)` picks them from the class names: accuracy by Weber ratio and by colour for dot arrays, by radius and distance for shapes, a contingency table for multi-class tasks.
+
+![Weber ratio](docs/images/weber_ratio.png)
+
+*Numerical-discrimination accuracy as a function of the Weber ratio between the two dot counts, and the fitted Weber fraction, for the biological connectome and four randomized wirings (companion study).*
+
 ## Logging
 
 The library uses Python's standard `logging` module for console output. All messages go through the `trainyourfly` logger, which is configured with coloured formatting by default. You can control verbosity:
@@ -190,6 +253,30 @@ logging.getLogger("trainyourfly").setLevel(logging.WARNING)
 # More verbose (includes debug messages)
 logging.getLogger("trainyourfly").setLevel(logging.DEBUG)
 ```
+
+## Package layout
+
+```
+src/trainyourfly/
+├── config.py            # Config dataclass, YAML loading and saving
+├── train.py             # train() and evaluate()
+├── eye_models/          # VoronoiCells (ommatidia) and NeuronMapper (photoreceptor activations)
+├── connectome_models/   # GraphBuilder (synaptic matrix -> PyG graph), Connectome and FullGraphModel
+├── data/                # DataProcessor: images -> retina -> batched graphs
+├── integrations/        # ExperimentTracker protocol, NullTracker and WandBTracker
+├── plots/               # FlyPlotter diagnostics and result plots
+└── utils/               # CSV loading, image processing, connectome download, training helpers
+```
+
+Run the tests with `pytest`.
+
+## Citation
+
+> Correig-Fraga, E., Guimerà, R., & Sales-Pardo, M. *Structure alone supports efficient visual computation in the Drosophila visual system.*
+>
+> Correig-Fraga, E., Guimerà, R., & Sales-Pardo, M. (2026). Data and source data for "Structure alone supports efficient visual computation in the Drosophila visual system" (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.21549559
+
+The connectome data come from FlyWire ([Dorkenwald et al., 2024](https://doi.org/10.1038/s41586-024-07558-y); [Schlegel et al., 2024](https://doi.org/10.1038/s41586-024-07686-5)). Please cite them too.
 
 ## License
 
