@@ -230,6 +230,8 @@ class CSVTracker:
 
 ## Looking inside
 
+The package gives you the hooks; what you look at is up to you. The two plots below are examples, and the companion [connectome](https://github.com/eudald-seeslab/connectome) repository shows many more uses of the same model: randomized wirings, how far activity travels at each message-passing step, which neurons and cell types drive a decision, and the geometry of the Kenyon-cell representation.
+
 `DataProcessor.plot_input_images(image)` returns the three-panel diagnostic below, which `train()` logs to the tracker at the start of every epoch: the tessellated retina, the photoreceptors activated by the current image, and the image itself.
 
 ![Training diagnostic](docs/images/training_diagnostic.png)
@@ -239,6 +241,8 @@ After testing, `plot_results` in `trainyourfly.plots.plots` turns a results tabl
 ![Weber ratio](docs/images/weber_ratio.png)
 
 *Task accuracies from the companion study for the biological connectome and four randomized wirings: colour discrimination, shape recognition, numerical discrimination, and accuracy as a function of the Weber ratio between the two dot counts.*
+
+In evaluation mode, `FullGraphModel` also keeps the Kenyon-cell activity of the last batch in `model.intermediate_output`. That vector is the model's internal representation of the stimulus. The companion repository captures it for every test image with a forward hook and reduces it with t-SNE, UMAP, or PCA to look at [representation manifolds](https://github.com/eudald-seeslab/connectome#looking-inside-the-model).
 
 ## Logging
 
