@@ -153,6 +153,11 @@ new_connectome: true
 # Options: null, "unconstrained", "pruned", "conn_pruned", "binned", "neuron_binned"
 randomization_strategy: null
 
+# Drop connections with fewer synapses than this (summed per pre/post pair).
+# Fewer edges make message passing much cheaper. FlyWire's own convention is 5.
+# Set to null to keep every connection.
+min_synapses: null
+
 
 # -----------------------------------------------------------------------------
 # Device and Precision

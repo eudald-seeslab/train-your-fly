@@ -60,7 +60,7 @@ The connectome data (~1.3 GB) is downloaded automatically into `connectome_data/
 | --- | --- |
 | `connections.csv` | `pre_root_id`, `post_root_id`, `syn_count` for every connected neuron pair (FlyWire v783 proofread connections) |
 | `classification.csv` | `root_id`, `cell_type`, `side` for every neuron (FlyWire annotations v2.1.0) |
-| `right_visual_positions_all_neurons.csv` | Photoreceptor identities and their projected `x_axis`, `y_axis` coordinates |
+| `right_visual_positions_all_neurons.csv`, `left_visual_positions_all_neurons.csv` | Photoreceptor identities of each eye and their projected `x_axis`, `y_axis` coordinates |
 | `rational_cell_types.csv` | Readout cell types, only needed when `rational_cell_types = None` |
 | `connections_random_<strategy>.csv` | Optional randomized graphs, selected with `randomization_strategy` |
 
@@ -171,6 +171,7 @@ The options that change the model. See the generated `config.yaml` for the full 
 | `neuron_dropout` / `decision_dropout` | `0` / `0` | Dropout on synaptic messages / on the readout |
 | `inhibitory_r7_r8` | `False` | R7 and R8 inhibit each other inside an ommatidium |
 | `log_transform_weights` | `False` | Use `log1p(syn_count)` as the edge weight |
+| `min_synapses` | `None` | Drop connections with fewer synapses (summed per neuron pair); FlyWire's convention is `5` |
 
 Photoreceptors and the readout cell types are protected and can never be filtered out.
 
@@ -244,6 +245,55 @@ After testing, `plot_results` in `trainyourfly.plots.plots` turns a results tabl
 
 In evaluation mode, `FullGraphModel` also keeps the Kenyon-cell activity of the last batch in `model.intermediate_output`. That vector is the model's internal representation of the stimulus. The companion repository captures it for every test image with a forward hook and reduces it with t-SNE, UMAP, or PCA to look at [representation manifolds](https://github.com/eudald-seeslab/connectome#looking-inside-the-model).
 
+## Using the eye and the graph outside training
+
+The pieces that `DataProcessor` assembles can also be used on their own, for instance to drive many connectome brains at once with a single sparse matrix instead of PyTorch Geometric batches.
+
+**Connectivity as a sparse matrix.** `GraphBuilder.from_dataset(...)` (or `GraphBuilder.from_neuron_data(...)`) annotates every node, in `root_ids.index_id` order, and can hand out the wiring as a CSR tensor:
+
+```python
+import torch
+
+from trainyourfly import Config
+from trainyourfly.connectome_models.graph_builder import GraphBuilder
+from trainyourfly.utils.csv_loader import CSVLoader
+
+config = Config(min_synapses=5, device_type="cuda")
+gb = GraphBuilder.from_dataset(
+    data_dir=config.CONNECTOME_DATA_DIR,
+    csv_loader=CSVLoader(),
+    rational_cell_types=config.rational_cell_types,
+    config=config,
+)
+
+gb.cell_type_names        # sorted unique cell types ("Unknown" included when present)
+gb.node_cell_type         # int array [num_nodes], index into cell_type_names
+gb.node_side              # int array [num_nodes]: 0 left, 1 right, 2 centre / na / unknown
+kc_left = gb.node_indices_for_types(["KCapbp-m", "KCapbp-ap1"], side="left")
+
+W = gb.to_torch_sparse_csr(config.DEVICE, dtype=torch.float32)  # [num_nodes, num_nodes]
+X_next = W @ X                                                  # X: [num_nodes, batch]
+```
+
+`W[post, pre]` holds the synapse count, that is, `W` is the transpose of `gb.synaptic_matrix` (rows are presynaptic). One `W @ X` therefore moves activity from pre- to postsynaptic neurons exactly like one pass of `Connectome` with untrained edges. `min_synapses` prunes connections with fewer synapses after summing them per neuron pair, which shrinks the FlyWire graph from about 15 M to 2.7 M edges at the usual threshold of 5.
+
+**Voronoi indices at any resolution.** `VoronoiCells.get_image_indices(pixel_num)` returns the ommatidium of every pixel of a `pixel_num x pixel_num` image mapped onto the native 512 frame (each pixel sits at the centre of the block it covers; `get_image_coords(pixel_num, frame_size=512)` gives the coordinates). Without an argument it returns the 512 x 512 indices as before.
+
+**Two eyes.** `BinocularRetina` builds a tessellation and a `NeuronMapper` per eye from `left_visual_positions_*.csv` and `right_visual_positions_*.csv`, and turns a pair of image batches into photoreceptor activations without resizing the images to 512:
+
+```python
+from trainyourfly.eye_models.binocular_retina import BinocularRetina
+
+retina = BinocularRetina(
+    config.CONNECTOME_DATA_DIR, gb.root_ids,
+    pixel_num=64, device=config.DEVICE, dtype=torch.float32,
+)
+acts = retina.activations(left_imgs, right_imgs)  # [num_nodes, batch]
+retina.left, retina.right                          # the two VoronoiCells, for plotting
+```
+
+Images are float tensors in `[0, 1]` of shape `[batch, pixel_num, pixel_num, 3]` (or `[batch, pixel_num, pixel_num]` for grayscale). The two eyes project onto disjoint neurons, so their activations are summed; every non-photoreceptor node is zero.
+
 ## Logging
 
 The library uses Python's standard `logging` module for console output. All messages go through the `trainyourfly` logger, which is configured with coloured formatting by default. You can control verbosity:
@@ -264,7 +314,7 @@ logging.getLogger("trainyourfly").setLevel(logging.DEBUG)
 src/trainyourfly/
 ├── config.py            # Config dataclass, YAML loading and saving
 ├── train.py             # train() and evaluate()
-├── eye_models/          # VoronoiCells (ommatidia) and NeuronMapper (photoreceptor activations)
+├── eye_models/          # VoronoiCells (ommatidia), NeuronMapper (photoreceptor activations), BinocularRetina (both eyes)
 ├── connectome_models/   # GraphBuilder (synaptic matrix -> PyG graph), Connectome and FullGraphModel
 ├── data/                # DataProcessor: images -> retina -> batched graphs
 ├── integrations/        # ExperimentTracker protocol, NullTracker and WandBTracker

@@ -191,6 +191,13 @@ class Config:
     randomization_strategy: Optional[str] = None
     """Synapse randomization: None, 'unconstrained', 'pruned', 'binned', etc."""
     
+    min_synapses: Optional[int] = None
+    """Minimum synapse count for a connection to be kept.
+    
+    Applied after summing the synapses between each pre/post neuron pair.
+    None keeps every connection; FlyWire's own convention is 5.
+    """
+    
     # =========================================================================
     # Device and Precision
     # =========================================================================
@@ -553,6 +560,10 @@ new_connectome: true
 # Synapse randomization for control experiments
 # Options: null, "unconstrained", "pruned", "conn_pruned", "binned", "neuron_binned"
 randomization_strategy: null
+
+# Drop connections with fewer synapses than this (summed per pre/post pair).
+# null keeps every connection; FlyWire's own convention is 5.
+min_synapses: null
 
 
 # -----------------------------------------------------------------------------

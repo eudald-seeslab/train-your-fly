@@ -47,8 +47,25 @@ class VoronoiCells:
 
         return neuron_data
 
-    def get_image_indices(self):
-        return self.query_points(self.img_coords)
+    def get_image_indices(self, pixel_num: Optional[int] = None) -> np.ndarray:
+        """Return the Voronoi cell index of every pixel of a square image.
+
+        Parameters
+        ----------
+        pixel_num : int | None
+            Side of the image grid. ``None`` uses the native 512 x 512 frame.
+            Any other value maps a ``pixel_num x pixel_num`` grid onto the
+            512 frame (see :meth:`get_image_coords`).
+
+        Returns
+        -------
+        np.ndarray
+            Flat array of length ``pixel_num ** 2`` in row-major image order.
+        """
+        if pixel_num is None:
+            return self.query_points(self.img_coords)
+        coords = self.get_image_coords(pixel_num, frame_size=self.pixel_num)
+        return self.query_points(coords)
 
     def _get_visual_neurons_data(self, neurons, side="right"):
         file = f"{side}_visual_positions_{neurons}_neurons.csv"
@@ -67,7 +84,16 @@ class VoronoiCells:
         return neuron_data[neuron_data["cell_type"] == "R7"][self.data_cols].values
 
     @staticmethod
-    def get_image_coords(pixel_num):
+    def get_image_coords(pixel_num, frame_size: Optional[int] = None):
+        """Return the ``(pixel_num ** 2, 2)`` array of ``(x, y)`` coordinates of
+        a square pixel grid, in row-major image order, with ``y`` counted from
+        the bottom like the neuron positions.
+
+        With ``frame_size`` set, the grid is a coarser (or finer) sampling of a
+        ``frame_size x frame_size`` frame: each pixel is placed at the centre of
+        the block of frame pixels it covers, so the result reduces to the
+        native grid when ``pixel_num == frame_size``.
+        """
         coords = (
             np.array(
                 np.meshgrid(np.arange(pixel_num), np.arange(pixel_num), indexing="xy")
@@ -78,7 +104,12 @@ class VoronoiCells:
 
         # Invert "y" to start from the bottom, like with the neurons
         coords[:, 1] = pixel_num - 1 - coords[:, 1]
-        return coords
+
+        if frame_size is None:
+            return coords
+
+        scale = frame_size / pixel_num
+        return (coords + 0.5) * scale - 0.5
 
     def _plot_voronoi_cells(
         self, ax, show_points=False, line_color="orange", line_width=1
@@ -278,8 +309,10 @@ class VoronoiCells:
             Destination device for the computation.
         pixel_counts : Tensor | None, optional
             1-D tensor ``(C,)`` with the number of pixels belonging to each
-            Voronoi cell.  If *None*, the counts are recomputed on the fly via
-            ``scatter_add``.
+            Voronoi cell.  Its length fixes the number of cells ``C``, which
+            lets cells without any pixel keep their slot.  If *None*, the
+            counts are recomputed on the fly via ``scatter_add`` and ``C`` is
+            the largest cell index plus one.
 
         Returns
         -------
@@ -290,7 +323,10 @@ class VoronoiCells:
         B, P, _ = processed.shape
         channels = processed[:, :, :4]  # (B,P,4)
         cell_idx = processed[:, :, 4].long()  # (B,P)
-        num_cells = int(cell_idx[0].max().item()) + 1
+        if pixel_counts is None:
+            num_cells = int(cell_idx[0].max().item()) + 1
+        else:
+            num_cells = int(pixel_counts.shape[0])
 
         # give each batch its own index range [0..num_cells-1] -> [k*num_cells ..]
         batch_offsets = torch.arange(B, device=device).view(B, 1) * num_cells
