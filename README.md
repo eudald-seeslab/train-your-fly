@@ -277,6 +277,17 @@ X_next = W @ X                                                  # X: [num_nodes,
 
 `W[post, pre]` holds the synapse count, that is, `W` is the transpose of `gb.synaptic_matrix` (rows are presynaptic). One `W @ X` therefore moves activity from pre- to postsynaptic neurons exactly like one pass of `Connectome` with untrained edges. `min_synapses` prunes connections with fewer synapses after summing them per neuron pair, which shrinks the FlyWire graph from about 15 M to 2.7 M edges at the usual threshold of 5.
 
+**Many brains at once.** `PopulationConnectome` is the forward pass of `Connectome` for a whole population, inference only: the state is `[num_nodes, batch]`, one column per brain, and each pass is one sparse matmul, so hundreds of brains fit where the PyTorch Geometric batch (one copy of the edge list per sample) holds a handful. It takes the raw connectome or a trained model, and gives the same numbers as `Connectome` in every training regime (`tests/test_population_connectome.py`):
+
+```python
+from trainyourfly.connectome_models.population import PopulationConnectome
+
+brains = PopulationConnectome.from_graph_builder(gb, config)        # the synapse counts, nothing trained
+brains = PopulationConnectome.from_connectome(result.model.connectome, gb)   # a trained model
+state = brains(acts)                                                # [num_nodes, batch] -> [num_nodes, batch]
+state = brains(acts, pre_gain=g_out, post_gain=g_in)                # brains that differ: per-neuron gains, [num_nodes, batch]
+```
+
 **Voronoi indices at any resolution.** `VoronoiCells.get_image_indices(pixel_num)` returns the ommatidium of every pixel of a `pixel_num x pixel_num` image mapped onto the native 512 frame (each pixel sits at the centre of the block it covers; `get_image_coords(pixel_num, frame_size=512)` gives the coordinates). Without an argument it returns the 512 x 512 indices as before.
 
 **Two eyes.** `BinocularRetina` builds a tessellation and a `NeuronMapper` per eye from `left_visual_positions_*.csv` and `right_visual_positions_*.csv`, and turns a pair of image batches into photoreceptor activations without resizing the images to 512:
@@ -315,7 +326,7 @@ src/trainyourfly/
 ├── config.py            # Config dataclass, YAML loading and saving
 ├── train.py             # train() and evaluate()
 ├── eye_models/          # VoronoiCells (ommatidia), NeuronMapper (photoreceptor activations), BinocularRetina (both eyes)
-├── connectome_models/   # GraphBuilder (synaptic matrix -> PyG graph), Connectome and FullGraphModel
+├── connectome_models/   # GraphBuilder (synaptic matrix -> PyG graph), Connectome and FullGraphModel, PopulationConnectome (many brains at once)
 ├── data/                # DataProcessor: images -> retina -> batched graphs
 ├── integrations/        # ExperimentTracker protocol, NullTracker and WandBTracker
 ├── plots/               # FlyPlotter diagnostics and result plots
