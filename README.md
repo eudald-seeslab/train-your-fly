@@ -123,6 +123,8 @@ Neurons keep no state between steps: each step is computed from incoming input a
 | Thresholds only | `False` | `True` | One threshold $\xi_i$ per neuron, plus readout |
 | Edges + thresholds | `True` | `True` | Both, plus readout |
 
+The normalisation and the activation function are applied at every pass when the thresholds are trained, or with `activate_neurons = True` (thresholds of zero); otherwise a pass is the weighted sum alone. With the raw synapse counts that sum multiplies the activity by hundreds to thousands at every step; `neuron_normalization = "mean"` is a global gain per brain that holds it at the same level from step to step, whatever the stimulus, and unlike `min_max` it keeps the sign of every input and is not set by the two most extreme neurons.
+
 With `synaptic_limit = True`, the gains are squashed with `tanh` into [-1, 1], so a synapse can become excitatory or inhibitory. With `refined_synaptic_data = True`, the synapse counts carry their neurotransmitter sign and the gains are squashed with a sigmoid into [0, 1] instead.
 
 ## Configuration
@@ -159,6 +161,8 @@ The options that change the model. See the generated `config.yaml` for the full 
 | `batch_size` / `num_epochs` / `base_lr` | `8` / `100` / `0.0003` | Training hyperparameters (AdamW by default) |
 | `NUM_CONNECTOME_PASSES` | `3` | Message-passing steps |
 | `train_edges` / `train_neurons` | `True` / `False` | Learn synaptic gains / neuronal thresholds |
+| `activate_neurons` | `False` | Normalise and activate at every pass even without trained thresholds (`train_neurons` implies it) |
+| `neuron_normalization` / `normalization_scale` | `"min_max"` / `3.0` | Normalisation of the neurons' input before the activation: `min_max`, `log1p`, or `mean` (each brain's input divided by `normalization_scale` times its mean absolute value) |
 | `synaptic_limit` | `True` | Bound the gains with `tanh` (a sigmoid with signed data) |
 | `refined_synaptic_data` | `False` | Use neurotransmitter-signed synapse counts |
 | `randomization_strategy` | `None` | Load `connections_random_<strategy>.csv` instead of the biological graph |
@@ -282,7 +286,7 @@ X_next = W @ X                                                  # X: [num_nodes,
 ```python
 from trainyourfly.connectome_models.population import PopulationConnectome
 
-brains = PopulationConnectome.from_graph_builder(gb, config)        # the synapse counts, nothing trained
+brains = PopulationConnectome.from_graph_builder(gb, config)        # the synapse counts, nothing trained (config.activate_neurons decides the passes)
 brains = PopulationConnectome.from_connectome(result.model.connectome, gb)   # a trained model
 state = brains(acts)                                                # [num_nodes, batch] -> [num_nodes, batch]
 state = brains(acts, pre_gain=g_out, post_gain=g_in)                # brains that differ: per-neuron gains, [num_nodes, batch]

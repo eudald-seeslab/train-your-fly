@@ -12,6 +12,18 @@ def min_max_norm(x):
     )
 
 
+def mean_norm(x, scale=1.0):
+    """Divide every sample (row) by ``scale`` times its mean absolute value.
+
+    One gain per brain and pass: whatever the stimulus and whatever the weights,
+    the mean absolute input of a brain's neurons comes out as ``1 / scale``, so
+    activity neither grows nor dies from pass to pass. Unlike ``min_max_norm`` it
+    keeps zero at zero and the sign of every input, and it is set by the whole
+    population of neurons instead of by the two most extreme ones.
+    """
+    return x / (scale * x.abs().mean(dim=1, keepdim=True)).clamp_min(1e-30)
+
+
 def log_norm(x):
     # Note that we first set negative values to 0 to avoid log(0), but
     # this is not a problem since these weights would be filtered

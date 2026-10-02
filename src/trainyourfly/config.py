@@ -140,7 +140,21 @@ class Config:
     """Activation function name: 'leaky_relu', 'relu', 'tanh', 'sigmoid'."""
     
     neuron_normalization: str = "min_max"
-    """Normalization method: 'min_max' or 'log1p'."""
+    """Normalization of the neurons' input at every pass, before the activation
+    function: 'min_max', 'log1p' or 'mean'. 'mean' divides each brain's input by
+    ``normalization_scale`` times its mean absolute value: a global gain that keeps
+    the activity stationary from pass to pass (the raw synapse counts multiply it by
+    hundreds to thousands per pass)."""
+
+    normalization_scale: float = 3.0
+    """With ``neuron_normalization = 'mean'``: the mean absolute input of a brain's
+    neurons is ``1 / normalization_scale`` before the activation function. Larger
+    values keep more neurons in the linear range of a saturating activation."""
+
+    activate_neurons: bool = False
+    """Apply the normalization and the activation function at every pass even when
+    the thresholds are not trained (``train_neurons = False``; the thresholds are
+    then zero). ``train_neurons = True`` implies it."""
     
     # =========================================================================
     # Biological Parameters
@@ -507,8 +521,15 @@ num_decision_making_neurons: null
 # Activation function for neuron embeddings
 activation_function: "leaky_relu"  # leaky_relu, relu, tanh, sigmoid
 
-# Normalization method for connectome output
-neuron_normalization: "min_max"  # min_max, log1p
+# Normalization of the neurons' input at every pass, before the activation function.
+# "mean" divides each brain's input by normalization_scale times its mean absolute
+# value, which keeps the activity stationary from pass to pass.
+neuron_normalization: "min_max"  # min_max, log1p, mean
+normalization_scale: 3.0
+
+# Apply the normalization and the activation at every pass even when the thresholds
+# are not trained (train_neurons: false). train_neurons: true implies it.
+activate_neurons: false
 
 
 # -----------------------------------------------------------------------------

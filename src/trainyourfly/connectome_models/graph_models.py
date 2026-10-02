@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn import Parameter
 from torch_geometric.nn import MessagePassing
-from trainyourfly.connectome_models.graph_models_helpers import log_norm, min_max_norm
+from trainyourfly.connectome_models.graph_models_helpers import log_norm, mean_norm, min_max_norm
 
 
 class Connectome(MessagePassing):
@@ -17,8 +17,12 @@ class Connectome(MessagePassing):
         self.batch_size = config.batch_size
         self.train_edges = config.train_edges
         self.train_neurons = config.train_neurons
+        # Normalise and activate at every pass: always with trained thresholds, and
+        # on request without them (thresholds of zero).
+        self.activate_neurons = config.train_neurons or getattr(config, "activate_neurons", False)
         self.lambda_func = config.lambda_func
         self.neuron_normalization = config.neuron_normalization
+        self.normalization_scale = getattr(config, "normalization_scale", 3.0)
         self.refined_synaptic_data = config.refined_synaptic_data
         self.synaptic_limit = config.synaptic_limit
         dtype = config.dtype
@@ -78,7 +82,7 @@ class Connectome(MessagePassing):
 
     def update(self, aggr_out):
 
-        if self.train_neurons:
+        if self.activate_neurons:
             # Each node gets its updated feature as the sum of its neighbor contributions.
             # Then, we apply the lambda function with a threshold, to emulate the biological
             temp = aggr_out.view(self.batch_size, -1)
@@ -86,10 +90,13 @@ class Connectome(MessagePassing):
                 temp = min_max_norm(temp)
             elif self.neuron_normalization == "log1p":
                 temp = log_norm(temp)
-            # Apply the threshold. Note the "abs" to make sure that the threshold is not
-            #  helping the neuron to activate
-            sig_out = self.lambda_func(temp - abs(self.neuron_activation_threshold))
-            return sig_out.view(-1, 1)
+            elif self.neuron_normalization == "mean":
+                temp = mean_norm(temp, self.normalization_scale)
+            if self.train_neurons:
+                # Apply the threshold. Note the "abs" to make sure that the threshold is not
+                #  helping the neuron to activate
+                temp = temp - abs(self.neuron_activation_threshold)
+            return self.lambda_func(temp).view(-1, 1)
 
         return aggr_out
 

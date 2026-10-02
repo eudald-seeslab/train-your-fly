@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from trainyourfly.connectome_models.graph_models import Connectome
-from trainyourfly.connectome_models.graph_models_helpers import log_norm, min_max_norm
+from trainyourfly.connectome_models.graph_models_helpers import log_norm, mean_norm, min_max_norm
 
 
 class PopulationConnectome(nn.Module):
@@ -32,13 +32,16 @@ class PopulationConnectome(nn.Module):
         :meth:`GraphBuilder.to_torch_sparse_csr` returns it for untrained edges.
     num_passes : int
         Number of message-passing steps (``NUM_CONNECTOME_PASSES``).
+    lambda_func : callable, optional
+        Activation function applied at every pass, after the normalisation
+        (``Config.lambda_func``). ``None`` is the regime in which a pass is the
+        weighted sum alone (``train_neurons = activate_neurons = False``).
+    neuron_normalization, normalization_scale
+        Normalisation of the input before the activation, as in ``Config``:
+        ``"min_max"``, ``"log1p"`` or ``"mean"``.
     threshold : torch.Tensor, optional
         Per-neuron activation thresholds ``[num_nodes]`` of a model trained
-        with ``train_neurons``. ``None`` is the regime without them, in which a
-        pass is the weighted sum alone.
-    lambda_func, neuron_normalization
-        Activation function and normalisation applied with the thresholds, as
-        in ``Config``.
+        with ``train_neurons``; ``None`` is thresholds of zero.
     """
 
     def __init__(
@@ -46,9 +49,10 @@ class PopulationConnectome(nn.Module):
         weight: torch.Tensor,
         num_passes: int,
         *,
-        threshold: Optional[torch.Tensor] = None,
         lambda_func: Optional[Callable] = None,
         neuron_normalization: str = "min_max",
+        normalization_scale: float = 3.0,
+        threshold: Optional[torch.Tensor] = None,
     ):
         super().__init__()
         if weight.layout != torch.sparse_csr:
@@ -70,6 +74,7 @@ class PopulationConnectome(nn.Module):
         self.num_passes = num_passes
         self.lambda_func = lambda_func
         self.neuron_normalization = neuron_normalization
+        self.normalization_scale = normalization_scale
 
     @property
     def num_nodes(self) -> int:
@@ -78,11 +83,17 @@ class PopulationConnectome(nn.Module):
     @classmethod
     def from_graph_builder(cls, graph_builder, config, device=None) -> "PopulationConnectome":
         """The untrained connectome: the synapse counts as they are (the
-        classifier-only regime, ``train_edges = train_neurons = False``)."""
+        classifier-only regime, ``train_edges = train_neurons = False``), with
+        the normalisation and activation of ``config`` if it asks for them
+        (``activate_neurons``)."""
         device = config.DEVICE if device is None else device
+        activate = getattr(config, "activate_neurons", False)
         return cls(
             graph_builder.to_torch_sparse_csr(device, config.dtype),
             config.NUM_CONNECTOME_PASSES,
+            lambda_func=config.lambda_func if activate else None,
+            neuron_normalization=config.neuron_normalization,
+            normalization_scale=getattr(config, "normalization_scale", 3.0),
         )
 
     @classmethod
@@ -109,9 +120,10 @@ class PopulationConnectome(nn.Module):
         return cls(
             post_by_pre,
             connectome.num_passes,
-            threshold=threshold,
-            lambda_func=connectome.lambda_func,
+            lambda_func=connectome.lambda_func if connectome.activate_neurons else None,
             neuron_normalization=connectome.neuron_normalization,
+            normalization_scale=connectome.normalization_scale,
+            threshold=threshold,
         )
 
     @torch.no_grad()
@@ -137,14 +149,18 @@ class PopulationConnectome(nn.Module):
             x = torch.mm(self.weight, x)
             if post_gain is not None:
                 x = x * post_gain
-            if self.threshold is not None:
+            if self.lambda_func is not None:
                 # `Connectome.update`, whose samples are rows; here they are columns.
                 x = x.t()
                 if self.neuron_normalization == "min_max":
                     x = min_max_norm(x)
                 elif self.neuron_normalization == "log1p":
                     x = log_norm(x)
-                x = self.lambda_func(x - self.threshold).t()
+                elif self.neuron_normalization == "mean":
+                    x = mean_norm(x, self.normalization_scale)
+                if self.threshold is not None:
+                    x = x - self.threshold
+                x = self.lambda_func(x).t()
             if on_pass is not None:
                 on_pass(k, x)
         return x

@@ -59,6 +59,10 @@ def _through_connectome(model: Connectome, gb: GraphBuilder, x: torch.Tensor) ->
         dict(train_neurons=True),
         dict(train_neurons=True, neuron_normalization="log1p"),
         dict(train_edges=True, train_neurons=True),
+        dict(activate_neurons=True, neuron_normalization="mean", lambda_func=torch.tanh),
+        dict(activate_neurons=True, neuron_normalization="mean", normalization_scale=1.0, lambda_func=torch.tanh,
+             refined_synaptic_data=True, train_edges=True),
+        dict(train_neurons=True, neuron_normalization="mean", lambda_func=torch.tanh),
     ],
 )
 def test_population_forward_is_the_connectome_forward(regime):
@@ -99,6 +103,40 @@ def test_gains_scale_outputs_and_inputs_every_pass():
     # Unit gains are no gains.
     ones = torch.ones(NUM_NODES, BATCH)
     assert torch.allclose(population(x, pre_gain=ones, post_gain=ones), population(x))
+
+
+def test_mean_normalisation_keeps_the_activity_stationary_whatever_the_scale():
+    gb = _builder(signed=True)
+    config = _config(activate_neurons=True, neuron_normalization="mean", normalization_scale=3.0,
+                     lambda_func=torch.tanh, NUM_CONNECTOME_PASSES=6)
+    population = PopulationConnectome.from_graph_builder(gb, config)
+    x = torch.rand(NUM_NODES, BATCH)
+    levels = []
+    out = population(x, on_pass=lambda k, state: levels.append(state.abs().mean(dim=0)))
+    assert out.abs().max() < 1.0
+    # tanh of an input whose mean absolute value is 1/3: the output stays near that, pass after pass
+    for level in levels:
+        assert torch.all((level > 0.15) & (level < 0.34))
+    # the stimulus can be a thousand times stronger, or the weights a thousand times larger
+    assert torch.allclose(population(1000.0 * x), out, rtol=1e-4, atol=1e-6)
+    W = gb.to_torch_sparse_csr(torch.device("cpu"))
+    stronger = PopulationConnectome(
+        torch.sparse_csr_tensor(W.crow_indices(), W.col_indices(), 1000.0 * W.values(), W.shape),
+        6, lambda_func=torch.tanh, neuron_normalization="mean", normalization_scale=3.0,
+    )
+    assert torch.allclose(stronger(x), out, rtol=1e-4, atol=1e-6)
+    # a brain that receives nothing stays silent instead of dividing by zero
+    assert torch.all(population(torch.zeros(NUM_NODES, 2)) == 0)
+
+
+def test_mean_norm_divides_each_sample_by_its_own_mean():
+    from trainyourfly.connectome_models.graph_models_helpers import mean_norm
+
+    x = torch.tensor([[1.0, -3.0, 0.0, 4.0], [10.0, -30.0, 0.0, 40.0]])
+    out = mean_norm(x, scale=2.0)
+    assert torch.allclose(out[0], out[1])
+    assert torch.allclose(out.abs().mean(dim=1), torch.full((2,), 0.5))
+    assert torch.equal(torch.sign(out), torch.sign(x))
 
 
 def test_on_pass_sees_every_step():
