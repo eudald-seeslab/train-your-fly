@@ -111,20 +111,35 @@ class BinocularRetina:
             Shape ``(num_nodes, B)``; zero for every neuron that is not a
             photoreceptor.
         """
-        left = self._eye_activations(
-            left_imgs, self._left_cell_idx, self._left_counts, self.left_mapper
+        return self.activations_from_cell_means(*self.cell_means(left_imgs, right_imgs))
+
+    def cell_means(
+        self, left_imgs: torch.Tensor, right_imgs: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """What every ommatidium of each eye collects: the mean ``r, g, b`` and
+        luminance of its pixels, ``(B, num_cells, 4)`` per eye. Images as in
+        :meth:`activations`, which is this followed by
+        :meth:`activations_from_cell_means`."""
+        return (
+            self._eye_means(left_imgs, self._left_cell_idx, self._left_counts),
+            self._eye_means(right_imgs, self._right_cell_idx, self._right_counts),
         )
-        right = self._eye_activations(
-            right_imgs, self._right_cell_idx, self._right_counts, self.right_mapper
-        )
+
+    def activations_from_cell_means(
+        self, left_means: torch.Tensor, right_means: torch.Tensor
+    ) -> torch.Tensor:
+        """Photoreceptor activations ``(num_nodes, B)`` from the per-ommatidium
+        channels of :meth:`cell_means` (or anything computed from them, such as
+        the adapted channels of :class:`AdaptingRetina`)."""
+        left = self.left_mapper.activations_from_voronoi_means(left_means)
+        right = self.right_mapper.activations_from_voronoi_means(right_means)
         return left + right
 
-    def _eye_activations(
+    def _eye_means(
         self,
         imgs: torch.Tensor,
         cell_idx: torch.Tensor,
         counts: torch.Tensor,
-        mapper: NeuronMapper,
     ) -> torch.Tensor:
         imgs = torch.as_tensor(imgs).to(device=self.device, dtype=torch.float32)
         if imgs.ndim == 3:
@@ -142,5 +157,4 @@ class BinocularRetina:
         idx = cell_idx.view(1, -1, 1).expand(B, -1, 1).to(flat.dtype)
         processed = torch.cat([flat, mean, idx], dim=2)
 
-        means = VoronoiCells.compute_voronoi_means(processed, self.device, counts)
-        return mapper.activations_from_voronoi_means(means)
+        return VoronoiCells.compute_voronoi_means(processed, self.device, counts)

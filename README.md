@@ -309,6 +309,18 @@ retina.left, retina.right                          # the two VoronoiCells, for p
 
 Images are float tensors in `[0, 1]` of shape `[batch, pixel_num, pixel_num, 3]` (or `[batch, pixel_num, pixel_num]` for grayscale). The two eyes project onto disjoint neurons, so their activations are summed; every non-photoreceptor node is zero.
 
+**Eyes that adapt.** For a population of eyes seen over time (not a batch of unrelated images), `AdaptingRetina` wraps a `BinocularRetina` and makes the photoreceptors report the light relative to what each ommatidium has got used to, a slow running mean per channel:
+
+```python
+from trainyourfly.eye_models.adapting_retina import AdaptingRetina
+
+eyes = AdaptingRetina(retina, batch_size=n_flies, rate=0.05)
+acts = eyes.activations(left_imgs, right_imgs)   # light - adapted level, then the level moves `rate` of the way
+eyes.reset(torch.tensor([3, 7]))                 # these eyes start over: they adapt at once to the next thing they see
+```
+
+A uniform background reports nothing however bright it is, what stands out of it reports its signed contrast, and a scene that does not change fades in about `1 / rate` steps. `retina.cell_means(left, right)` and `retina.activations_from_cell_means(...)` are the two halves of `activations` it is built from: the light every ommatidium collects, and the photoreceptors that read it.
+
 ## Logging
 
 The library uses Python's standard `logging` module for console output. All messages go through the `trainyourfly` logger, which is configured with coloured formatting by default. You can control verbosity:
@@ -329,7 +341,7 @@ logging.getLogger("trainyourfly").setLevel(logging.DEBUG)
 src/trainyourfly/
 ├── config.py            # Config dataclass, YAML loading and saving
 ├── train.py             # train() and evaluate()
-├── eye_models/          # VoronoiCells (ommatidia), NeuronMapper (photoreceptor activations), BinocularRetina (both eyes)
+├── eye_models/          # VoronoiCells (ommatidia), NeuronMapper (photoreceptor activations), BinocularRetina (both eyes), AdaptingRetina (eyes that adapt to the light)
 ├── connectome_models/   # GraphBuilder (synaptic matrix -> PyG graph), Connectome and FullGraphModel, PopulationConnectome (many brains at once)
 ├── data/                # DataProcessor: images -> retina -> batched graphs
 ├── integrations/        # ExperimentTracker protocol, NullTracker and WandBTracker
